@@ -1,0 +1,12 @@
+cfg_name: srad_autoencoder
+model_name: LstmAutoencoder
+module: smad.models.autoencoders
+params:
+  model:
+    hidden_size: 64
+    input_size: 1
+    latent_dim: 32
+  training:
+    batch_size: 32
+    epochs: 200
+    learning_rate: 0.001
