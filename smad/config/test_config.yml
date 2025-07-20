@@ -1,4 +1,0 @@
-cfg_name: test_config
-hidden_size: 15
-input_size: 10
-model_name: LstmAutoencoder
