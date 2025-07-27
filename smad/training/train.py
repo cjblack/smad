@@ -1,30 +1,52 @@
+from smad.utils import check_and_return_config
+from smad.models.utils import *
+import torch
+import time
+import numpy as np
 #import matplotlib.pyplot as plt
-#import numpy as np
 
-from smad.utils import get_config, save_config
-from smad.models import *
-#from models.trajectory_autoencoder import TrajectoryAutoencoder
-import importlib
-#from Analysis.Examples.PawTrajectoryAnalysis import PawTrajAnalysis
-#from utils import autoencoder_utils as aeu
-#import torch
-#import torch.nn as nn
-#import os
-#import glob
-#import time
 
-def train_model(model_params: str | dict):#input_size=1, hidden_size=96, latent_dim = 32):
-    if isinstance(model_params, str):
-        cfg = get_config(model_params)
-    elif isinstance(model_params, dict):
-        save_config(model_params)
-        cfg = model_params
-    else:
-        raise TypeError("Input must be either a valid string or a dictionary")
-    model_name = cfg['model_name']
-    module = cfg['module']
-    model_params = cfg['params']['model']
-    model_class = getattr(importlib.import_module(module),model_name)
-    model = model_class(model_params)
-    return model
+def train_model(model_params: str | dict, train_loader: torch.utils.data.DataLoader):
+
+    # check if loading param file
+    cfg = check_and_return_config(model_params)
+    model = create_model(cfg) # change this to either create a new model or train a pre-made model
+    training_params = cfg['params']['training'] # get training params from dictionary
+
+    # Set vars
+    training_info = {'total_loss': np.empty(training_params['epochs'],dtype=np.float32),
+                     'epoch_time': np.empty(training_params['epochs'], dtype=np.float32)}  # preallocate empty arrays for epoch loss and time
+
+    # Set up training
+    criterion = getattr(torch.nn,training_params['criterion'])() # create criterion
+    optimizer = getattr(torch.optim, training_params['optimizer']) # create optimizer
+    optimizer = optimizer(model.parameters(), lr=training_params['learning_rate']) # set optimizer parameters
+
+    # run basic training
+    start = time.process_time() # variable for runtime start
+    for epoch in range(training_params['epochs']):
+        model.train() # set to train
+        running_loss = 0.0
+
+        for batch in train_data:
+            optimizer.zero_grad() # zero out gradient
+
+            # Forward pass
+            outputs = model(batch)
+            loss = criterion(outputs, batch)
+
+            # Backwards pass & optimization
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item()
+
+        if epoch % 10 == 0:
+            print(f"Epoch {epoch}/{epochs}, Loss: {running_loss / len(train_loader):.4f}")
+
+        training_info['total_loss'][epoch] = loss.item() # store epoch's total loss
+        training_info['epoch_time'][epoch] = time.process_time() - start # store epoch time
+        start = time.process_time()
+
+    return model, training_info
 

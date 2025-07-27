@@ -10,3 +10,5 @@ params:
     batch_size: 32
     epochs: 200
     learning_rate: 0.001
+    criterion: MSELoss
+    optimizer: Adam

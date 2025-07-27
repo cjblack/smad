@@ -3,6 +3,18 @@ from pathlib import Path
 
 cfg_path = Path(__file__).resolve().parent / 'config' # create path variable for config files
 
+def check_and_return_config(model_params: str | dict):
+    # check if loading param file
+    if isinstance(model_params, str):
+        cfg = get_config(model_params) # get param file
+    elif isinstance(model_params, dict):
+        save_config(model_params) # save params to param file
+        cfg = model_params # set cfg to dictionary params
+    else:
+        raise TypeError("Input must be either a valid string or a dictionary")
+
+    return cfg
+
 def get_config(config_file: str) -> dict:
     '''
     Loads specified config file
