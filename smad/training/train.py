@@ -8,10 +8,13 @@ import subprocess
 
 
 def train_model(model_params: str | dict, train_loader: torch.utils.data.DataLoader):
+    # Make sure model runs on cuda
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(device)
 
     # check if loading param file
     cfg = check_and_return_config(model_params)
-    model = create_model(cfg) # change this to either create a new model or train a pre-made model
+    model = create_model(cfg).to(device) # change this to either create a new model or train a pre-made model
     training_params = cfg['params']['training'] # get training params from dictionary
 
     # Set vars
@@ -31,6 +34,7 @@ def train_model(model_params: str | dict, train_loader: torch.utils.data.DataLoa
         running_loss = 0.0
 
         for batch in train_loader:
+            batch = batch.to(device)
             optimizer.zero_grad() # zero out gradient
 
             # Forward pass
