@@ -56,7 +56,7 @@ def get_output_dir():
     if args.output_dir:
         output_dir = args.output_dir
     else:
-        output_dir = os.environ("SMAD_OUTPUT_DIR","./outputs")
+        output_dir = os.environ.get("SMAD_OUTPUT_DIR","./outputs")
 
     # Create job id package
     job_id = os.environ.get("SLURM_JOB_ID")
