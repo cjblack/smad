@@ -3,6 +3,7 @@ from smad.models.utils import *
 import torch
 import time
 import numpy as np
+import subprocess
 #import matplotlib.pyplot as plt
 
 
@@ -24,11 +25,12 @@ def train_model(model_params: str | dict, train_loader: torch.utils.data.DataLoa
 
     # run basic training
     start = time.process_time() # variable for runtime start
-    for epoch in range(training_params['epochs']):
+    epochs = training_params['epochs']
+    for epoch in range(epochs):
         model.train() # set to train
         running_loss = 0.0
 
-        for batch in train_data:
+        for batch in train_loader:
             optimizer.zero_grad() # zero out gradient
 
             # Forward pass
@@ -43,7 +45,8 @@ def train_model(model_params: str | dict, train_loader: torch.utils.data.DataLoa
 
         if epoch % 10 == 0:
             print(f"Epoch {epoch}/{epochs}, Loss: {running_loss / len(train_loader):.4f}")
-
+            result = subprocess.run(["nvidia-smi"], capture_output=True, text=True)
+            print(result.stdout)
         training_info['total_loss'][epoch] = loss.item() # store epoch's total loss
         training_info['epoch_time'][epoch] = time.process_time() - start # store epoch time
         start = time.process_time()
