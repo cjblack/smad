@@ -19,7 +19,8 @@ def train_model(model_params: str | dict, train_loader: torch.utils.data.DataLoa
 
     # Set vars
     training_info = {'total_loss': np.empty(training_params['epochs'],dtype=np.float32),
-                     'epoch_time': np.empty(training_params['epochs'], dtype=np.float32)}  # preallocate empty arrays for epoch loss and time
+                     'epoch_time': np.empty(training_params['epochs'], dtype=np.float32),
+                     'cfg':cfg}  # preallocate empty arrays for epoch loss and time
 
     # Set up training
     criterion = getattr(torch.nn,training_params['criterion'])() # create criterion
