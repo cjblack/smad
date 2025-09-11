@@ -1,0 +1,14 @@
+cfg_name: smad_multi_limb_autoencoder
+model_name: LstmAutoencoderPk
+module: smad.models.autoencoders
+params:
+  model:
+    hidden_size: 128
+    input_size: 4
+    latent_dim: 64
+  training:
+    batch_size: 32
+    criterion: MSELoss
+    epochs: 200
+    learning_rate: 0.001
+    optimizer: Adam
