@@ -3,6 +3,7 @@ from smad.training.utils import collate_fn
 from smad.data.utils import load_data, pickle_save_data, create_data_loader
 from smad.data.data_types import SeqDataSet
 from smad.utils import get_output_dir
+from smad.plotting.training_plots import plot_reconstruction
 from smad.models.utils import save_model
 from pathlib import Path
 
@@ -18,6 +19,7 @@ if __name__ == "__main__":
     train_loader = create_data_loader(data=dataset, batch_size=batch_size, collate_fn = collate_fn)
     print('Starting training...')
     model, training_info = train_model_packed(config_file,train_loader)
+    plot_reconstruction(model, dataset)
     output_dir = get_output_dir()
     save_model(model,training_info,output_dir)
     pickle_save_data(output_dir+'/training_info.pkl',training_info)

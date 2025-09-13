@@ -74,7 +74,7 @@ def train_model_packed(model_params: str | dict, train_loader: torch.utils.data.
                      'cfg':cfg}  # preallocate empty arrays for epoch loss and time
 
     # Set up training
-    criterion = getattr(torch.nn,training_params['criterion'])() # create criterion
+    criterion = getattr(torch.nn,training_params['criterion'])(reduction='none') # create criterion
     optimizer = getattr(torch.optim, training_params['optimizer']) # create optimizer
     optimizer = optimizer(model.parameters(), lr=training_params['learning_rate']) # set optimizer parameters
 
@@ -93,16 +93,20 @@ def train_model_packed(model_params: str | dict, train_loader: torch.utils.data.
             optimizer.zero_grad() # zero out gradient
 
             # Forward pass
-            outputs = model(packed, padded, lengths)
+            outputs = model(packed, padded, lengths, teacher_forcing=True)
 
             # Masked loss
-            mask = torch.arange(padded.size(1), device=device)[None, :] < lengths[:, None]
+            target = padded[:, 1:, :]
+            max_len_minus1 = target.size(1)
+
+            mask = torch.arange(max_len_minus1, device=device)[None, :] < (lengths-1)[:, None]
             mask = mask.unsqueeze(-1)
 
-            loss = (criterion(outputs, padded) * mask).sum() / mask.sum()
+            loss = (criterion(outputs, target) * mask).sum() / mask.sum()
 
             # Backwards pass & optimization
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(),max_norm=1.0) # might remove
             optimizer.step()
 
             running_loss += loss.item()

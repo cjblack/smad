@@ -48,11 +48,14 @@ class LstmAutoencoderPk(nn.Module):
         # Latent space (bottleneck)
         self.latent = nn.Linear(hidden_size * 2, latent_dim)  # 2 * hidden_size for bidirectional
         # Decoder LSTM
-        self.decoder_lstm = nn.LSTM(input_size=latent_dim, hidden_size=hidden_size, batch_first=True)
+        self.latent_to_hidden = nn.Linear(latent_dim, hidden_size)
+        self.decoder_lstm = nn.LSTM(input_size=input_size, hidden_size=hidden_size, batch_first=True)
         # Final linear layer to reconstruct the input sequence
         self.decoder_out = nn.Linear(hidden_size, input_size)
 
-    def forward(self, packed_input: PackedSequence, padded_input: torch.Tensor, lengths):
+    def forward(self, packed_input: PackedSequence, padded_input: torch.Tensor, lengths, teacher_forcing=True):
+        batch_size, max_len, feat_dim = padded_input.shape
+
         # Encoder (Bidirectional LSTM)
         enc_out, (h_n, c_n) = self.encoder(packed_input)
         # Take the last hidden state (concatenating the forward and backward hidden states)
@@ -61,10 +64,21 @@ class LstmAutoencoderPk(nn.Module):
         # Latent space (bottleneck)
         latent = self.latent(h_n)  # Shape: [batch_size, latent_dim]
         # Decoder LSTM input will be the latent vector
-        batch_size, max_len, _ = padded_input.shape
-        decoder_input = latent.unsqueeze(1).repeat(1, max_len, 1)  # Repeat latent for each time step
-        decoder_out, _ = self.decoder_lstm(decoder_input)
-        # Reconstruct the original input
-        decoded = self.decoder_out(decoder_out)
+        hidden = self.latent_to_hidden(latent).unsqueeze(0)
+        c0 = torch.zeros_like(hidden)
 
+        outputs = []
+        decoder_input = padded_input[:, 0, :].unsqueeze(1)
+        for t in range(1, max_len):
+            out, (hidden, c0) = self.decoder_lstm(decoder_input, (hidden, c0))
+            pred = self.decoder_out(out)
+            outputs.append(pred)
+            if teacher_forcing:
+                decoder_input = padded_input[:,t,:].unsqueeze(1)
+            else:
+                decoder_input = pred
+        #decoder_out, _ = self.decoder_lstm(decoder_input)
+        # Reconstruct the original input
+        #decoded = self.decoder_out(decoder_out)
+        decoded = torch.cat(outputs, dim=1)
         return decoded
