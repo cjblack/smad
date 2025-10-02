@@ -1,5 +1,6 @@
 import importlib
 import torch
+import pickle
 
 def create_model(cfg: dict):
     # Set up model from config
@@ -11,6 +12,10 @@ def create_model(cfg: dict):
     return model
 
 def save_model(model, model_info, directory):
+    # using pickle for model_info but may change to .h5
     model_name = model_info['cfg']['model_name']
     file_path = directory+f'/{model_name}_model.pt'
+    model_info_path = directory+f'/{model_name}_info.pkl'
     torch.save(model, file_path)
+    with open(model_info_path,'wb') as f:
+        pickle.dump(training_info,f)
