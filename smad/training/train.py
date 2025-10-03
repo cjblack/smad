@@ -81,11 +81,18 @@ def train_model_packed(model_params: str | dict, train_loader: torch.utils.data.
     # run basic training
     start = time.process_time() # variable for runtime start
     epochs = training_params['epochs']
+
+    # teacher forcing decay
+    initial_ratio = 1.0
+    final_ratio = 0.0
+    decay_epochs = int(round(0.6*epochs)) # set decay epochs to 60% of total epochs
+
     for epoch in range(epochs):
         model.train() # set to train
         running_loss = 0.0
-
+        ratio = max(final_ratio, initial_ratio * (1-epoch/decay_epochs)) # decay ratio over training - this will inevitably yield a value of 0
         for packed, padded, lengths in train_loader:
+
             packed = packed.to(device)
             padded = padded.to(device)
             lengths = torch.tensor(lengths, device=device)
@@ -93,7 +100,7 @@ def train_model_packed(model_params: str | dict, train_loader: torch.utils.data.
             optimizer.zero_grad() # zero out gradient
 
             # Forward pass
-            outputs = model(packed, padded, lengths, teacher_forcing=True)
+            outputs = model(packed, padded, lengths, teacher_forcing=True, teacher_forcing_ratio=ratio)
 
             # Masked loss
             target = padded[:, 1:, :]

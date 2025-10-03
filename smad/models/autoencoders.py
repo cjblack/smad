@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import PackedSequence, pack_padded_sequence, pad_packed_sequence
+import random
 
 class LstmAutoencoder(nn.Module):
     def __init__(self, model_params):#input_size, hidden_size, latent_dim):
@@ -53,7 +54,7 @@ class LstmAutoencoderPk(nn.Module):
         # Final linear layer to reconstruct the input sequence
         self.decoder_out = nn.Linear(hidden_size, input_size)
 
-    def forward(self, packed_input: PackedSequence, padded_input: torch.Tensor, lengths, teacher_forcing=True):
+    def forward(self, packed_input: PackedSequence, padded_input: torch.Tensor, lengths, teacher_forcing=True, teacher_forcing_ratio = 1.0):
         batch_size, max_len, feat_dim = padded_input.shape
 
         # Encoder (Bidirectional LSTM)
@@ -73,7 +74,7 @@ class LstmAutoencoderPk(nn.Module):
             out, (hidden, c0) = self.decoder_lstm(decoder_input, (hidden, c0))
             pred = self.decoder_out(out)
             outputs.append(pred)
-            if teacher_forcing:
+            if teacher_forcing and random.random() < teacher_forcing_ratio:
                 decoder_input = padded_input[:,t,:].unsqueeze(1)
             else:
                 decoder_input = pred
