@@ -4,7 +4,7 @@ from torch.nn.utils.rnn import pad_packed_sequence
 This is for evaluating model with test data set
 '''
 
-def evaluate(model, dataloader, device):
+def evaluate(model, dataloader, device, teacher_forcing=False):
     model.eval()
     all_outputs, all_targets = [], []
 
@@ -15,7 +15,7 @@ def evaluate(model, dataloader, device):
             if isinstance(lengths, torch.Tensor):
                 lengths = lengths.cpu()
 
-            decoded = model(packed, padded, lengths, teacher_forcing=False)
+            decoded = model(packed, padded, lengths, teacher_forcing=teacher_forcing)
 
             # Loop over batch to collect outputs (variable lengths)
             for i, seq_len in enumerate(lengths):

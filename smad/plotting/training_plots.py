@@ -1,7 +1,7 @@
 import torch
 import matplotlib.pyplot as plt
 
-def plot_reconstruction(model, dataset, device = "cuda", n_examples = 3):
+def plot_reconstruction(model, dataset, output_dir = None, device = "cuda", n_examples = 3):
     model.eval()
     fig, axes = plt.subplots(n_examples, 1, figsize=(10,3*n_examples))
     if n_examples == 1:
@@ -26,4 +26,7 @@ def plot_reconstruction(model, dataset, device = "cuda", n_examples = 3):
             axes[i].set_title(f"Sequence {i} reconstruction")
 
         plt.tight_layout()
+        if output_dir:
+            plt.savefig(output_dir+'/training_reconstruction_example.pdf')
+            plt.savefig(output_dir+'/training_reconstruction_example.pdf')
         plt.show()
