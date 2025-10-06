@@ -18,4 +18,4 @@ def save_model(model, model_info, directory):
     model_info_path = directory+f'/{model_name}_info.pkl'
     torch.save(model, file_path)
     with open(model_info_path,'wb') as f:
-        pickle.dump(training_info,f)
+        pickle.dump(model_info,f)
