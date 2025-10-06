@@ -1,11 +1,11 @@
 import torch
-from torch.nn.utils.rnn import pad_packed_sequence
 '''
 This is for evaluating model with test data set
 '''
 
-def evaluate(model, dataloader, device, teacher_forcing=False):
+def evaluate(model, dataloader, teacher_forcing=False):
     model.eval()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     all_outputs, all_targets = [], []
 
     with torch.no_grad():
