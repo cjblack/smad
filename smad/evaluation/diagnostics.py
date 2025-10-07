@@ -6,9 +6,10 @@ import torch
 This is for evaluating model with test data set
 '''
 
-def evaluate(model, dataloader, device, teacher_forcing=False):
+def evaluate(model, dataloader, teacher_forcing=False):
     model.eval()
     all_outputs, all_targets = [], []
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     with torch.no_grad():
         for packed, padded, lengths in dataloader:

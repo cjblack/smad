@@ -120,7 +120,6 @@ def train_model_packed(model_params: str | dict, train_loader: torch.utils.data.
 
         if epoch % 10 == 0:
             print(f"Epoch {epoch}/{epochs}, Loss: {running_loss / len(train_loader):.4f}")
-            print(torch.cuda.memory_summary())
         training_info['total_loss'][epoch] = loss.item() # store epoch's total loss
         training_info['epoch_time'][epoch] = time.process_time() - start # store epoch time
         start = time.process_time()
