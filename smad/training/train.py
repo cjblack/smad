@@ -69,7 +69,7 @@ def train_model_packed(model_params: str | dict, train_loader: torch.utils.data.
     training_params = cfg['params']['training'] # get training params from dictionary
 
     # Set vars
-    training_info = {'total_loss': np.empty(training_params['epochs'],dtype=np.float32),
+    training_info = {'epoch_mse': np.empty(training_params['epochs'],dtype=np.float32),
                      'epoch_time': np.empty(training_params['epochs'], dtype=np.float32),
                      'noise': noise,
                      'teacher_forcing': teacher_forcing,
