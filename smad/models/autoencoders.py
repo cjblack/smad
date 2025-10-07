@@ -46,7 +46,7 @@ class LstmAutoencoderPk(nn.Module):
         hidden_size = model_params['hidden_size']
         latent_dim = model_params['latent_dim']
         # Set start token for potential use in training
-        start_token = nn.Parameter(1,1,input_size)
+        start_token = nn.Parameter(torch.randn(1,1,input_size))
         self.register_parameter('start_token',start_token)
         # Encoder LSTM with Bidirectional
         self.encoder = nn.LSTM(input_size=input_size, hidden_size=hidden_size, batch_first=True, bidirectional=True)
