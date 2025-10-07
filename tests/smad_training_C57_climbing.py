@@ -23,7 +23,7 @@ if __name__ == "__main__":
     train_loader = create_data_loader(data=dataset_train, batch_size=batch_size, collate_fn = collate_fn)
     test_loader = create_data_loader(data=dataset_test, batch_size=batch_size, collate_fn = collate_fn)
     print('Starting training...')
-    model, training_info = train_model_packed(config_file,train_loader)
+    model, training_info = train_model_packed(config_file,train_loader, noise=0.0)
     output_dir = get_output_dir()
     save_model(model,training_info,output_dir)
     pickle_save_data(output_dir+'/training_info.pkl',training_info)

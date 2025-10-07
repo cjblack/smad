@@ -11,6 +11,7 @@ class LstmAutoencoder(nn.Module):
         input_size = model_params['input_size']
         hidden_size = model_params['hidden_size']
         latent_dim = model_params['latent_dim']
+
         # Encoder LSTM with Bidirectional
         self.encoder = nn.LSTM(input_size=input_size, hidden_size=hidden_size, batch_first=True, bidirectional=True)
         # Latent space (bottleneck)
@@ -44,6 +45,9 @@ class LstmAutoencoderPk(nn.Module):
         input_size = model_params['input_size']
         hidden_size = model_params['hidden_size']
         latent_dim = model_params['latent_dim']
+        # Set start token for potential use in training
+        start_token = nn.Parameter(1,1,input_size)
+        self.register_parameter('start_token',start_token)
         # Encoder LSTM with Bidirectional
         self.encoder = nn.LSTM(input_size=input_size, hidden_size=hidden_size, batch_first=True, bidirectional=True)
         # Latent space (bottleneck)
@@ -54,7 +58,7 @@ class LstmAutoencoderPk(nn.Module):
         # Final linear layer to reconstruct the input sequence
         self.decoder_out = nn.Linear(hidden_size, input_size)
 
-    def forward(self, packed_input: PackedSequence, padded_input: torch.Tensor, lengths, teacher_forcing=True, teacher_forcing_ratio = 1.0):
+    def forward(self, packed_input: PackedSequence, padded_input: torch.Tensor, lengths, learned_start_token = False, teacher_forcing=True, teacher_forcing_ratio = 1.0, noise_std = 0.0):
         batch_size, max_len, feat_dim = padded_input.shape
 
         # Encoder (Bidirectional LSTM)
@@ -69,7 +73,12 @@ class LstmAutoencoderPk(nn.Module):
         c0 = torch.zeros_like(hidden)
 
         outputs = []
-        decoder_input = padded_input[:, 0, :].unsqueeze(1)
+        if learned_start_token:
+            # trains on start token - more generalizable
+            decoder_input = self.start_token.expand(batch_size, 1, -1)
+        else:
+            # trains on initial input
+            decoder_input = padded_input[:, 0, :].unsqueeze(1) # always start with first input, even though this is not an SOS token
         for t in range(1, max_len):
             out, (hidden, c0) = self.decoder_lstm(decoder_input, (hidden, c0))
             pred = self.decoder_out(out)
@@ -78,6 +87,9 @@ class LstmAutoencoderPk(nn.Module):
                 decoder_input = padded_input[:,t,:].unsqueeze(1)
             else:
                 decoder_input = pred
+            if noise_std > 0.0:
+                noise = torch.randn_like(decoder_input)*noise_std # creates random gaussian noise
+                decoder_input = decoder_input+noise # adds random gaussian noise to input
         #decoder_out, _ = self.decoder_lstm(decoder_input)
         # Reconstruct the original input
         #decoded = self.decoder_out(decoder_out)
