@@ -3,12 +3,15 @@ model_name: LstmAutoencoderPk
 module: smad.models.autoencoders
 params:
   model:
-    hidden_size: 64
+    hidden_size: 128
     input_size: 4
-    latent_dim: 32
+    latent_dim: 64
   training:
     batch_size: 32
     criterion: MSELoss
     epochs: 200
     learning_rate: 0.0001
     optimizer: Adam
+    autoregressive_ft:
+      epochs: 5
+      learning_rate: 0.000001

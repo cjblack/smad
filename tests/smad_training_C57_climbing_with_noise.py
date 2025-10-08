@@ -1,4 +1,4 @@
-from smad.training.train import train_model_packed
+from smad.training.train import train_model_packed, auto_regressive_fine_tuning
 from smad.training.utils import collate_fn
 from smad.evaluation.diagnostics import evaluate
 from smad.data.utils import load_data, pickle_save_data, create_data_loader
@@ -23,10 +23,13 @@ if __name__ == "__main__":
     train_loader = create_data_loader(data=dataset_train, batch_size=batch_size, collate_fn = collate_fn)
     test_loader = create_data_loader(data=dataset_test, batch_size=batch_size, collate_fn = collate_fn)
     print('Starting training...')
-    model, training_info = train_model_packed(config_file,train_loader, noise=0.05)
+    model, training_info, criterion, optimizer, device = train_model_packed(config_file,train_loader, noise=0.05)
+    model, fine_tuning_info = auto_regressive_fine_tuning(model,train_loader, training_info, criterion, optimizer, device)
     output_dir = get_output_dir()
+
     save_model(model,training_info,output_dir)
     pickle_save_data(output_dir+'/training_info.pkl',training_info)
+    pickle_save_data(output_dir + '/autoregressive_rt_info.pkl', fine_tuning_info)
     plot_reconstruction(model, dataset_train, output_dir)
     all_output_test, all_target_test = evaluate(model,test_loader) # will incorporate analysis in future
     print('Finished training...')

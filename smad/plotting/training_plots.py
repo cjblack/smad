@@ -28,5 +28,5 @@ def plot_reconstruction(model, dataset, output_dir = None, device = "cuda", n_ex
         plt.tight_layout()
         if output_dir:
             plt.savefig(output_dir+'/training_reconstruction_example.pdf')
-            plt.savefig(output_dir+'/training_reconstruction_example.pdf')
+            plt.savefig(output_dir+'/training_reconstruction_example.png')
         plt.show()
