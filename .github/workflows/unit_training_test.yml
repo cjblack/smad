@@ -1,4 +1,4 @@
-name: Autoencoder Unit Test Training (Conda)
+name: Autoencoder
 
 on:
   push:

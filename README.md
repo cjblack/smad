@@ -1,3 +1,4 @@
+[![Tests](https://github.com/cjblack/smad/actions/workflows/unit_training_test.yml/badge.svg)](https://github.com/cjblack/smad/actions/workflows/unit_training_test.yml)
 # skilled movement anomaly detection
 WIP: code is being refactored from another repository to make this application more generalizable. Main purpose is to train models and perform anomaly detection on kinematic data extracted from markerless pose estimation.
 
