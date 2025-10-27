@@ -1,0 +1,20 @@
+name: Autoencoder Unit Test Training (Conda)
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          environment-file: environment.yml
+          activate-environment: smad
+          python-version: 3.11
+          auto-activate-base: false
+      - name: Autoencoder Training Test
+        shell: bash -l {0}
+        run: | pytest --maxfail=1 --disable-warnings -q

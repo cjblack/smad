@@ -1,22 +1,33 @@
-import torch
+"""
+Utils for data
+"""
+
 from pathlib import Path
-from sklearn.preprocessing import MinMaxScaler
 import pickle
+import torch
+from sklearn.preprocessing import MinMaxScaler
+import pandas as pd
+from pyspark.sql import SparkSession
 from scipy.signal import savgol_filter
 
 DATA_TEST_SETS = Path(__file__).resolve().parent / 'test_sets'
 
 def create_data_loader(data, batch_size: int, shuffle: bool =True, collate_fn = None):
+    """
+    Creates data loader object
+    """
     data_loader = torch.utils.data.DataLoader(data, batch_size=batch_size, shuffle=shuffle, collate_fn = collate_fn)
     return data_loader
 
 def normalize_data(data):
     scaler = MinMaxScaler(feature_range=(0, 1))  # Normalize between 0 and 1
-    data = scaler.fit_transform(data.T)  # Scale data - transpose data as it requires n_samples x n_features
+    # Scale data - transpose data as it requires n_samples x n_features
+    data = scaler.fit_transform(data.T)  
     return data.T, scaler
 
 def pad_tensor_list(tensor_list: list):
-    tensor_list_pad = torch.nn.utils.rnn.pad_sequence(tensor_list,batch_first=True) # pad data with zeros
+    # pad data with zeros
+    tensor_list_pad = torch.nn.utils.rnn.pad_sequence(tensor_list,batch_first=True) 
     return tensor_list_pad
 
 def load_data(fname):
