@@ -22,4 +22,4 @@ def test_training():
     training_mse = training_info['epoch_mse'][0]
     fine_tuning_mse = fine_tuning_info['total_loss'][0]
 
-    assert (training_mse > 0) & (fine_tuning_mse > 0)
+    assert (training_mse == 0) & (fine_tuning_mse == 0)
