@@ -1,6 +1,10 @@
 name: Autoencoder Unit Test Training (Conda)
 
-on: [push]
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   test:
@@ -17,4 +21,5 @@ jobs:
           auto-activate-base: false
       - name: Autoencoder Training Test
         shell: bash -l {0}
-        run: | pytest --maxfail=1 --disable-warnings -q
+        run: |
+          pytest --maxfail=1 --disable-warnings -q
