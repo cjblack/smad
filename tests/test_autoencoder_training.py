@@ -16,7 +16,7 @@ def test_training():
     dataset_train = dataset_train[:50] # reduce size of input data for testing
     batch_size=32
     train_loader = create_data_loader(data=dataset_train, batch_size=batch_size, collate_fn=collate_fn)
-    print('Autoencoder Training Test.')
+    print('Autoencoder Training Test V1.')
     model, training_info, criterion, optimizer, device = train_model_packed(config_file, train_loader, noise=0.05)
     model, fine_tuning_info = auto_regressive_fine_tuning(model, train_loader, training_info, criterion, optimizer, device)
     training_mse = training_info['epoch_mse'][0]
