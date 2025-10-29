@@ -33,6 +33,10 @@ def pad_tensor_list(tensor_list: list):
 def load_data(fname):
     data = []
     if str(fname).split('.')[-1] == 'pt':
+        # pt format - ok for full models
+        data = torch_load_data(fname)
+    elif str(fname).split('.')[-1] == 'pth':
+        # pth format - better for model states
         data = torch_load_data(fname)
 
     if data:

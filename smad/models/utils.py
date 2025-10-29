@@ -1,6 +1,10 @@
+import os
+import glob
 import importlib
 import torch
 import pickle
+from smad.models.utils import create_model
+from smad.data.utils import pickle_load_data, torch_load_data
 
 def create_model(cfg: dict):
     # Set up model from config
@@ -14,8 +18,26 @@ def create_model(cfg: dict):
 def save_model(model, model_info, directory):
     # using pickle for model_info but may change to .h5
     model_name = model_info['cfg']['model_name']
-    file_path = directory+f'/{model_name}_model.pt'
+    file_path = directory+f'/{model_name}_model.pth'
     model_info_path = directory+f'/{model_name}_info.pkl'
-    torch.save(model, file_path)
+    torch.save(model.state_dict(), file_path)
     with open(model_info_path,'wb') as f:
         pickle.dump(model_info,f)
+
+def load_model_package(directory, load_model=False):
+    model_package = dict()
+    files_ = glob.glob(directory + '/*')
+    for f in files_:
+        fname = f.split('\\')[-1].split('.')[0]
+        ftype = f.split('.')[-1]
+        if ftype == 'pkl':
+            model_package[fname] = pickle_load_data(f)
+        elif ftype == 'pth':
+            model_package['state_dict'] = torch_load_data(f)
+            model_package['model_name'] = fname
+    if load_model:
+        cfg = model_package['training_info']['cfg']
+        model = create_model(cfg)
+        model = model.load_state_dict(model_package['state_dict'])
+        model_package['model'] = model
+    return model_package
