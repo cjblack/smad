@@ -3,7 +3,6 @@ import glob
 import importlib
 import torch
 import pickle
-from smad.models.utils import create_model
 from smad.data.utils import pickle_load_data, torch_load_data
 
 def create_model(cfg: dict):
