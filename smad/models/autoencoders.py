@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
-from torch.nn.utils.rnn import PackedSequence, pack_padded_sequence, pad_packed_sequence
 import random
+from torch.nn.utils.rnn import PackedSequence
+
 
 class LstmAutoencoder(nn.Module):
     def __init__(self, model_params):#input_size, hidden_size, latent_dim):
@@ -45,18 +46,30 @@ class LstmAutoencoderPk(nn.Module):
         input_size = model_params['input_size']
         hidden_size = model_params['hidden_size']
         latent_dim = model_params['latent_dim']
+        dropout = model_params['dropout'] if hidden_size > 1 else 0.0
+        use_skip = model_params['skip_connections']
+        
+        # Set up skip connections
+        self.use_skip = use_skip
+        if self.use_skip:
+            self.skip_alpha  = nn.Parameter(torch.tensor(0.5))
+
         # Set start token for potential use in training
         start_token = nn.Parameter(torch.randn(1,1,input_size))
         self.register_parameter('start_token',start_token)
         # Encoder LSTM with Bidirectional
-        self.encoder = nn.LSTM(input_size=input_size, hidden_size=hidden_size, batch_first=True, bidirectional=True)
+        self.encoder = nn.LSTM(input_size=input_size, hidden_size=hidden_size, batch_first=True, bidirectional=True, dropout=dropout)
         # Latent space (bottleneck)
         self.latent = nn.Linear(hidden_size * 2, latent_dim)  # 2 * hidden_size for bidirectional
         # Decoder LSTM
         self.latent_to_hidden = nn.Linear(latent_dim, hidden_size)
-        self.decoder_lstm = nn.LSTM(input_size=input_size, hidden_size=hidden_size, batch_first=True)
+        self.decoder_lstm = nn.LSTM(input_size=input_size, hidden_size=hidden_size, batch_first=True, dropout=dropout)
         # Final linear layer to reconstruct the input sequence
         self.decoder_out = nn.Linear(hidden_size, input_size)
+        # Dropout layers
+        self.input_dropout = nn.Dropout(dropout)
+        self.output_dropout = nn.Dropout(dropout)
+
 
     def forward(self, packed_input: PackedSequence, padded_input: torch.Tensor, lengths, learned_start_token = False, teacher_forcing=True, teacher_forcing_ratio = 1.0, noise_std = 0.0):
         batch_size, max_len, feat_dim = padded_input.shape
@@ -66,6 +79,7 @@ class LstmAutoencoderPk(nn.Module):
         # Take the last hidden state (concatenating the forward and backward hidden states)
         # Shape: [batch_size, hidden_size*2] due to bidirectionality
         h_n = torch.cat((h_n[-2], h_n[-1]), dim=1)
+
         # Latent space (bottleneck)
         latent = self.latent(h_n)  # Shape: [batch_size, latent_dim]
         # Decoder LSTM input will be the latent vector
@@ -80,7 +94,9 @@ class LstmAutoencoderPk(nn.Module):
             # trains on initial input
             decoder_input = padded_input[:, 0, :].unsqueeze(1) # always start with first input, even though this is not an SOS token
         for t in range(1, max_len):
+            decoder_input = self.input_dropout(decoder_input) # dropout
             out, (hidden, c0) = self.decoder_lstm(decoder_input, (hidden, c0))
+            out = self.output_dropout(out) # dropout
             pred = self.decoder_out(out)
             outputs.append(pred)
             if teacher_forcing and random.random() < teacher_forcing_ratio:
@@ -94,4 +110,8 @@ class LstmAutoencoderPk(nn.Module):
         # Reconstruct the original input
         #decoded = self.decoder_out(decoder_out)
         decoded = torch.cat(outputs, dim=1)
+
+        if self.use_skip:
+            alpha = torch.sigmoid(self.skip_alpha) # constrain between 0-1
+            decoded = alpha * decoded + (1-alpha)*padded_input[:,1:,:]
         return decoded

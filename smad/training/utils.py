@@ -16,6 +16,7 @@ def collate_fn(batch):
 
 def teacher_forcing_inverse_sigmoid(epoch, k=5.0):
     return k / (k+np.exp(epoch / k))
+
 def teacher_forcing_linear(epoch, initial, final, total_epochs=200, decay=0.6):
     decay_epochs = int(round(decay*total_epochs))
     return max(final, initial * (1 - epoch / decay_epochs))

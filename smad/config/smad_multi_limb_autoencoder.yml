@@ -6,6 +6,8 @@ params:
     hidden_size: 128
     input_size: 4
     latent_dim: 64
+    dropout: 0.2
+    skip_connections: False
   training:
     batch_size: 32
     criterion: MSELoss
