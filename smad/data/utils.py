@@ -7,7 +7,6 @@ import pickle
 import torch
 from sklearn.preprocessing import MinMaxScaler
 import pandas as pd
-from pyspark.sql import SparkSession
 from scipy.signal import savgol_filter
 
 DATA_TEST_SETS = Path(__file__).resolve().parent / 'test_sets'
