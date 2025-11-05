@@ -6,7 +6,7 @@ params:
     hidden_size: 64
     input_size: 4
     latent_dim: 32
-    dropout: 0.2
+    dropout: 0.05
     skip_connections: False
   training:
     batch_size: 32
