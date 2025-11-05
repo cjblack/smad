@@ -25,3 +25,15 @@ jobs:
         shell: bash -l {0}
         run: |
           pytest --maxfail=1 --disable-warnings -q
+  
+  merge:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/development' && success() # only run if tests pass
+    steps:
+      - name: Merge dev > main 
+        uses: devops-infra/action-merge-branch@v0.6.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          source_branch: development
+          target_branch: main
