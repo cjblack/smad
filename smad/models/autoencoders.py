@@ -46,9 +46,15 @@ class LstmAutoencoderPk(nn.Module):
         input_size = model_params['input_size']
         hidden_size = model_params['hidden_size']
         latent_dim = model_params['latent_dim']
+        self.num_layers_enc = model_params['num_encoder_layers']
+        self.num_layers_dec = model_params['num_decoder_layers']
         dropout = model_params['dropout'] if hidden_size > 1 else 0.0
         use_skip = model_params['skip_connections']
         
+        # LSTM dropout only works when num_layers > 1
+        enc_dropout = dropout if self.num_layers_enc > 1 else 0.0
+        dec_dropout = dropout if self.num_layers_dec > 1 else 0.0
+
         # Set up skip connections
         self.use_skip = use_skip
         if self.use_skip:
@@ -58,12 +64,12 @@ class LstmAutoencoderPk(nn.Module):
         start_token = nn.Parameter(torch.randn(1,1,input_size))
         self.register_parameter('start_token',start_token)
         # Encoder LSTM with Bidirectional
-        self.encoder = nn.LSTM(input_size=input_size, hidden_size=hidden_size, batch_first=True, bidirectional=True, dropout=dropout)
+        self.encoder = nn.LSTM(input_size=input_size, num_layers=self.num_layers_enc,hidden_size=hidden_size, batch_first=True, bidirectional=True, dropout=enc_dropout)
         # Latent space (bottleneck)
         self.latent = nn.Linear(hidden_size * 2, latent_dim)  # 2 * hidden_size for bidirectional
         # Decoder LSTM
         self.latent_to_hidden = nn.Linear(latent_dim, hidden_size)
-        self.decoder_lstm = nn.LSTM(input_size=input_size, hidden_size=hidden_size, batch_first=True, dropout=dropout)
+        self.decoder_lstm = nn.LSTM(input_size=input_size, num_layers=self.num_layers_dec, hidden_size=hidden_size, batch_first=True, dropout=dec_dropout)
         # Final linear layer to reconstruct the input sequence
         self.decoder_out = nn.Linear(hidden_size, input_size)
         # Dropout layers
@@ -72,21 +78,30 @@ class LstmAutoencoderPk(nn.Module):
 
 
     def forward(self, packed_input: PackedSequence, padded_input: torch.Tensor, lengths, learned_start_token = False, teacher_forcing=True, teacher_forcing_ratio = 1.0, noise_std = 0.0):
+        
         batch_size, max_len, feat_dim = padded_input.shape
 
         # Encoder (Bidirectional LSTM)
         enc_out, (h_n, c_n) = self.encoder(packed_input)
         # Take the last hidden state (concatenating the forward and backward hidden states)
         # Shape: [batch_size, hidden_size*2] due to bidirectionality
-        h_n = torch.cat((h_n[-2], h_n[-1]), dim=1)
-
+        h_top_fwd = h_n[-2]
+        h_top_bwd = h_n[-1]
+        
+        #h_n = torch.cat((h_n[-2], h_n[-1]), dim=1)
+        h_n = torch.cat((h_top_fwd, h_top_bwd), dim=1) 
+        
         # Latent space (bottleneck)
         latent = self.latent(h_n)  # Shape: [batch_size, latent_dim]
+        
         # Decoder LSTM input will be the latent vector
-        hidden = self.latent_to_hidden(latent).unsqueeze(0)
+        #hidden = self.latent_to_hidden(latent).unsqueeze(0)
+        h0_single = self.latent_to_hiddne(latent)
+        hidden = h0_single.unsqueeze(0).repmat(self.num_layers_dec, 1, 1)
         c0 = torch.zeros_like(hidden)
 
         outputs = []
+        
         if learned_start_token:
             # trains on start token - more generalizable
             decoder_input = self.start_token.expand(batch_size, 1, -1)
