@@ -12,6 +12,15 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: Disk space (prior)
+        run: df -h
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/lib/android
+          sudo apt-get clean
+          df -h
       - name: Set up Miniconda
         uses: conda-incubator/setup-miniconda@v3
         with:
@@ -19,6 +28,13 @@ jobs:
           activate-environment: smad
           python-version: 3.11
           auto-activate-base: false
+      - name: Disk space (post)
+        shell: bash -l {0}
+        run: |
+          df -h
+          conda info
+          conda env list
+          conda clean -a -y || true
       - name: Autoencoder Training Test
         shell: bash -l {0}
         run: |
