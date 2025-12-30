@@ -96,12 +96,12 @@ class LstmAutoencoderPk(nn.Module):
         
         # Decoder LSTM input will be the latent vector
         #hidden = self.latent_to_hidden(latent).unsqueeze(0)
-        h0_single = self.latent_to_hiddne(latent)
+        h0_single = self.latent_to_hidden(latent)
         hidden = h0_single.unsqueeze(0).repmat(self.num_layers_dec, 1, 1)
         c0 = torch.zeros_like(hidden)
 
         outputs = []
-        
+
         if learned_start_token:
             # trains on start token - more generalizable
             decoder_input = self.start_token.expand(batch_size, 1, -1)
