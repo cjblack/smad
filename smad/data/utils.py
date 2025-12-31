@@ -5,6 +5,7 @@ Utils for data
 from pathlib import Path
 import pickle
 import torch
+import json
 from sklearn.preprocessing import MinMaxScaler
 import pandas as pd
 from scipy.signal import savgol_filter
@@ -53,3 +54,8 @@ def pickle_load_data(fname):
     with open(fname, 'rb') as f:
         data = pickle.load(f)
     return data
+
+def json_save_data(fname, data):
+    with open(fname, 'w') as f:
+        f.write(data)
+        

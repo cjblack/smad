@@ -1,7 +1,7 @@
 from smad.training.train import train_model_packed, auto_regressive_fine_tuning
 from smad.training.utils import collate_fn
 from smad.evaluation.diagnostics import evaluate
-from smad.data.utils import load_data, pickle_save_data, create_data_loader
+from smad.data.utils import load_data, pickle_save_data, create_data_loader, json_save_data
 from smad.data.data_types import SeqDataSet
 from smad.utils import get_output_dir
 from smad.plotting.training_plots import plot_reconstruction
@@ -30,6 +30,7 @@ if __name__ == "__main__":
     save_model(model,training_info,output_dir) # should probably make the save model be one function that saves everything...
     pickle_save_data(output_dir+'/training_info.pkl',training_info)
     pickle_save_data(output_dir+'/autoregressive_rt_info.pkl',fine_tuning_info)
+    json_save_data(output_dir+'/model_cfg.json', training_info['cfg'])
     plot_reconstruction(model, dataset_train, output_dir)
     all_output_test, all_target_test = evaluate(model,test_loader) # will incorporate analysis in future
     print('Finished training...')
