@@ -30,7 +30,7 @@ if __name__ == "__main__":
     save_model(model,training_info,output_dir) # should probably make the save model be one function that saves everything...
     pickle_save_data(output_dir+'/training_info.pkl',training_info)
     pickle_save_data(output_dir+'/autoregressive_rt_info.pkl',fine_tuning_info)
-    json_save_data(output_dir+'/model_cfg.json', training_info['cfg'])
+    #json_save_data(output_dir+'/model_cfg.json', training_info['cfg'])
     plot_reconstruction(model, dataset_train, output_dir)
     all_output_test, all_target_test = evaluate(model,test_loader) # will incorporate analysis in future
     print('Finished training...')
