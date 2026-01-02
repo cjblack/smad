@@ -37,6 +37,6 @@ def load_model_package(directory, load_model=False):
     if load_model:
         cfg = model_package['training_info']['cfg']
         model = create_model(cfg)
-        model = model.load_state_dict(model_package['state_dict'])
+        model.load_state_dict(model_package['state_dict']) # do not create a new variable otherwise model won't load
         model_package['model'] = model
     return model_package

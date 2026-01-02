@@ -170,6 +170,7 @@ def auto_regressive_fine_tuning(model, train_loader: torch.utils.data.DataLoader
 
     # Run training loop
     start = time.process_time()
+    model.use_skip = False
     model.train()
     for epoch in range(fine_tune_epochs):
         running_loss = 0.0

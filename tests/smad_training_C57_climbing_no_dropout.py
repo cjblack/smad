@@ -5,6 +5,7 @@ from smad.data.utils import load_data, pickle_save_data, create_data_loader, jso
 from smad.data.data_types import SeqDataSet
 from smad.utils import get_output_dir
 from smad.plotting.training_plots import plot_reconstruction
+from smad.plotting.evaluation_plots import plot_corr_coef
 from smad.models.utils import save_model
 from pathlib import Path
 
@@ -33,4 +34,5 @@ if __name__ == "__main__":
     #json_save_data(output_dir+'/model_cfg.json', training_info['cfg'])
     plot_reconstruction(model, dataset_train, output_dir)
     all_output_test, all_target_test = evaluate(model,test_loader) # will incorporate analysis in future
+    plot_corr_coef(all_output_test, all_target_test, output_dir) # use for cross correlation...probably create a script for analyses
     print('Finished training...')
