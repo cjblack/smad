@@ -33,7 +33,7 @@ if __name__ == "__main__":
     pickle_save_data(output_dir + '/autoregressive_rt_info.pkl', fine_tuning_info)
     json_save_data(output_dir+'/model_cfg.json', training_info['cfg'])
     plot_reconstruction(model, dataset_train, output_dir)
-    all_output_test, all_target_test = evaluate(model,test_loader) # will incorporate analysis in future
+    all_output_test, all_target_test, all_latent = evaluate(model,test_loader) # will incorporate analysis in future
     plot_corr_coef(all_output_test, all_target_test, output_dir) # use for cross correlation...probably create a script for analyses
 
     print('Finished training...')

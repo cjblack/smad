@@ -38,6 +38,10 @@ class LstmAutoencoder(nn.Module):
 
         return decoded
 
+"""
+MAIN CLASS
+"""
+
 class LstmAutoencoderPk(nn.Module):
     def __init__(self, model_params):#input_size, hidden_size, latent_dim):
         super(LstmAutoencoderPk, self).__init__()
@@ -63,19 +67,64 @@ class LstmAutoencoderPk(nn.Module):
         # Set start token for potential use in training
         start_token = nn.Parameter(torch.randn(1,1,input_size))
         self.register_parameter('start_token',start_token)
+        
         # Encoder LSTM with Bidirectional
         self.encoder = nn.LSTM(input_size=input_size, num_layers=self.num_layers_enc,hidden_size=hidden_size, batch_first=True, bidirectional=True, dropout=enc_dropout)
+        
         # Latent space (bottleneck)
         self.latent = nn.Linear(hidden_size * 2, latent_dim)  # 2 * hidden_size for bidirectional
+        
         # Decoder LSTM
         self.latent_to_hidden = nn.Linear(latent_dim, hidden_size)
         self.decoder_lstm = nn.LSTM(input_size=input_size, num_layers=self.num_layers_dec, hidden_size=hidden_size, batch_first=True, dropout=dec_dropout)
+        
         # Final linear layer to reconstruct the input sequence
         self.decoder_out = nn.Linear(hidden_size, input_size)
+        
         # Dropout layers
         self.input_dropout = nn.Dropout(dropout)
         self.output_dropout = nn.Dropout(dropout)
 
+    @torch.no_grad()
+    def encode(self, packed_input: PackedSequence):
+        """
+        Extract latent space for pass
+        
+        :param self: 
+        :param packed_input: Packed input for model
+        :type packed_input: PackedSequence
+        """
+
+        self.eval()
+        _, (h_n, _) = self.encoder(packed_input)
+        # top layer forward/backward for bidirectional encoder
+        h_top_fwd = h_n[-2]   # (B, hidden)
+        h_top_bwd = h_n[-1]   # (B, hidden)
+        h_cat = torch.cat((h_top_fwd, h_top_bwd), dim=1)  # (B, 2*hidden)
+
+        z = self.latent(h_cat)  # (B, latent_dim)
+        return z
+    
+    @torch.no_grad()
+    def decode(self, z: torch.tensor, max_len: int):
+        self.eval()
+        B = z.shape[0]
+        device = z.device
+
+        # initialize hidden state from latent
+        h0 = self.latent_to_hidden(z)
+        h = h0.unsqueeze(0).repeat(self.num_layers_dec, 1, 1)
+        c = torch.zeros_like(h)
+
+        # start token
+        x = self.start_token.expand(B, 1, -1).to(device)
+
+        outs = []
+        for _ in range(1, max_len):
+            y, (h, c) = self.decoder_lstm(x, (h,c))
+            x = self.decoder_out(y)
+            outs.append(x)
+        return torch.cat(outs, dim=1)
 
     def forward(self, packed_input: PackedSequence, padded_input: torch.Tensor, lengths, learned_start_token = False, teacher_forcing=True, teacher_forcing_ratio = 1.0, noise_std = 0.0):
         
@@ -129,4 +178,5 @@ class LstmAutoencoderPk(nn.Module):
         if self.use_skip:
             alpha = torch.sigmoid(self.skip_alpha) # constrain between 0-1
             decoded = alpha * decoded + (1-alpha)*padded_input[:,1:,:]
+
         return decoded
