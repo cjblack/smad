@@ -90,7 +90,7 @@ class LstmAutoencoderPk(nn.Module):
         self.output_dropout = nn.Dropout(dropout)
 
     @torch.no_grad()
-    def encode(self, packed_input: PackedSequence):
+    def encode(self, packed_input: PackedSequence, lengths: torch.Tensor):
         """
         Extract latent space for pass
         
@@ -100,13 +100,24 @@ class LstmAutoencoderPk(nn.Module):
         """
 
         self.eval()
-        _, (h_n, _) = self.encoder(packed_input)
+        enc_out, (h_n, _) = self.encoder(packed_input)
         # top layer forward/backward for bidirectional encoder
         h_top_fwd = h_n[-2]   # (B, hidden)
         h_top_bwd = h_n[-1]   # (B, hidden)
-        h_cat = torch.cat((h_top_fwd, h_top_bwd), dim=1)  # (B, 2*hidden)
+        h_n = torch.cat((h_top_fwd, h_top_bwd), dim=1)  # (B, 2*hidden)
 
-        z = self.latent(h_cat)  # (B, latent_dim)
+        latent_input = h_n
+        if self.pooling:
+            enc_out_padded, _ = pad_packed_sequence(enc_out, batch_first=True)
+            B, T, _ = enc_out_padded.shape
+            
+            lengths = lengths.to(enc_out_padded.device)
+            mask = (torch.arange(T, device=enc_out_padded.device)[None, :] < lengths[:, None]).unsqueeze(-1).float()
+            mean_hidden = (enc_out_padded*mask).sum(dim=1) / lengths.unsqueeze(-1).float()
+
+            latent_input = torch.cat([h_n, mean_hidden], dim=1)
+
+        z = self.latent(latent_input)  # (B, latent_dim)
         return z
     
     @torch.no_grad()
@@ -164,8 +175,7 @@ class LstmAutoencoderPk(nn.Module):
             mean_hidden = (enc_out_padded*mask).sum(dim=1) / lengths.unsqueeze(-1).float()
 
             latent_input = torch.cat([h_n, mean_hidden], dim=1)
-            latent = self.latent(latent_input)
-            
+
         # Latent space (bottleneck)
         latent = self.latent(latent_input)  # Shape: [batch_size, latent_dim]
         

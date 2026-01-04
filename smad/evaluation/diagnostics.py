@@ -19,7 +19,7 @@ def evaluate(model, dataloader, teacher_forcing=False):
                 lengths = lengths.cpu()
 
             decoded = model(packed, padded, lengths, teacher_forcing=teacher_forcing)
-            z = model.encode(packed)
+            z = model.encode(packed, lengths)
             all_latent.append(z)
             # Loop over batch to collect outputs (variable lengths)
             for i, seq_len in enumerate(lengths):
