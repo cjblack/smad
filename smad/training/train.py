@@ -59,7 +59,7 @@ def train_model(model_params: str | dict, train_loader: torch.utils.data.DataLoa
     return model, training_info
 
 
-def train_model_packed(model_params: str | dict, train_loader: torch.utils.data.DataLoader, teacher_forcing_function: str = 'inverse_sigmoid', noise: float = 0.0):
+def train_model_packed(model_params: str | dict, train_loader: torch.utils.data.DataLoader, val_loader: torch.utils.data.DataLoader, teacher_forcing_function: str = 'inverse_sigmoid', noise: float = 0.0):
     # Make sure model runs on cuda
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(device)
@@ -75,7 +75,9 @@ def train_model_packed(model_params: str | dict, train_loader: torch.utils.data.
         teacher_forcing = False
 
     # Set vars
-    training_info = {'epoch_mse': np.empty(training_params['epochs'],dtype=np.float32),
+    training_info = {'epoch_mse_train': np.empty(training_params['epochs'],dtype=np.float32),
+                     'epoch_mse_val_ar': np.empty(training_params['epochs'], dtype=np.float32),
+                     'epoch_mse_val_tf': np.empty(training_params['epochs'], dtype=np.float32),
                      'epoch_time': np.empty(training_params['epochs'], dtype=np.float32),
                      'noise': noise,
                      'teacher_forcing': teacher_forcing,
@@ -87,7 +89,7 @@ def train_model_packed(model_params: str | dict, train_loader: torch.utils.data.
     optimizer = optimizer(model.parameters(), lr=training_params['learning_rate']) # set optimizer parameters
 
     # run basic training
-    start = time.process_time() # variable for runtime start
+    #start = time.process_time() # variable for runtime start
     epochs = training_params['epochs']
 
     # teacher forcing decay
@@ -97,6 +99,8 @@ def train_model_packed(model_params: str | dict, train_loader: torch.utils.data.
 
 
     for epoch in range(epochs):
+
+        start = time.perf_counter() # variable for runtime start
         model.train() # set to train
         running_loss = 0.0
         total_loss = 0.0
@@ -138,12 +142,74 @@ def train_model_packed(model_params: str | dict, train_loader: torch.utils.data.
         epoch_mse = total_loss/total_count
         if epoch % 10 == 0:
             print(f"Epoch {epoch}/{epochs}, MSE: {epoch_mse:.4f}")
-        training_info['epoch_mse'][epoch] = total_loss/total_count#loss.item() # store epoch's total loss
-        training_info['epoch_time'][epoch] = time.process_time() - start # store epoch time
-        start = time.process_time()
+        training_info['epoch_mse_train'][epoch] = total_loss/total_count#loss.item() # store epoch's total loss
+        #start = time.process_time()
+
+        """VALIDATION"""
+        epoch_mse_val_ar, epoch_mse_val_tf = validation_eval(model, val_loader, criterion, device, tf_ratio)
+        # model.eval()
+        # validation_loss = 0.0
+        # validation_count = 0.0
+        # with torch.no_grad():
+        #     for packed, padded, lengths in val_loader:
+        #         packed = packed.to(device)
+        #         padded = padded.to(device)
+        #         lengths = torch.tensor(lengths, device=device)
+
+        #         outputs = model(packed, padded, lengths, teacher_forcing=False, noise_std=0.0)
+        #         target = padded[:, 1:, :]
+        #         max_len_minus1 = target.size(1)
+
+        #         mask = torch.arange(max_len_minus1, device=device)[None, :] < (lengths-1)[:, None]
+        #         mask = mask.unsqueeze(-1)
+
+        #         per_timestep_loss = (criterion(outputs, target) * mask)
+        #         validation_loss += per_timestep_loss.sum().item()
+        #         validation_count += mask.sum().item()
+
+        # epoch_mse_val = validation_loss / validation_count
+        training_info['epoch_mse_val_ar'][epoch] = epoch_mse_val_ar
+        training_info['epoch_mse_val_tf'][epoch] = epoch_mse_val_tf
+        training_info['epoch_time'][epoch] = time.perf_counter() - start # store epoch time
+
 
     return model, training_info, criterion, optimizer, device
 
+def validation_eval(model, val_loader, criterion, device, tf_ratio):
+    
+    val_loss_ar = 0.0
+    val_loss_tf = 0.0
+    val_count = 0.0
+    model.eval()
+    with torch.no_grad():
+        for packed, padded, lengths in val_loader:
+            packed = packed.to(device)
+            padded = padded.to(device)
+            lengths = torch.tensor(lengths, device=device)
+
+            out_ar = model(packed, padded, lengths, teacher_forcing=False, noise_std=0.0)
+            out_tf = model(packed, padded, lengths, teacher_forcing=True, teacher_forcing_ratio=tf_ratio, noise_std=0.0)
+
+            target = padded[:, 1:, :]
+            max_len_minus1 = target.size(1)
+
+            mask = torch.arange(max_len_minus1, device=device)[None, :] < (lengths-1)[:, None]
+            mask = mask.unsqueeze(-1)
+
+            per_timestep_loss_ar = (criterion(out_ar, target) * mask)
+            per_timestep_loss_tf = (criterion(out_tf, target) * mask)
+
+            val_loss_ar += per_timestep_loss_ar.sum().item()
+            val_loss_tf += per_timestep_loss_tf.sum().item()
+            val_count += mask.sum().item()
+    
+    epoch_mse_val_ar = val_loss_ar / val_count
+    epoch_mse_val_tf = val_loss_tf / val_count
+
+    return epoch_mse_val_ar, epoch_mse_val_tf
+
+
+            
 def auto_regressive_fine_tuning(model, train_loader: torch.utils.data.DataLoader, training_info: dict, criterion, optimizer, device, freeze_encoder = False):
     fine_tune_epochs = training_info['cfg']['params']['training']['autoregressive_ft']['epochs']
     fine_tune_lr = training_info['cfg']['params']['training']['autoregressive_ft']['learning_rate']
@@ -170,7 +236,7 @@ def auto_regressive_fine_tuning(model, train_loader: torch.utils.data.DataLoader
 
     # Run training loop
     start = time.process_time()
-    model.use_skip = False
+    model.use_skip = False # set this to remove skip connections during AR-FT
     model.train()
     for epoch in range(fine_tune_epochs):
         running_loss = 0.0

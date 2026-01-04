@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import random
-from torch.nn.utils.rnn import PackedSequence
+from torch.nn.utils.rnn import PackedSequence, pad_packed_sequence
 
 
 class LstmAutoencoder(nn.Module):
@@ -50,6 +50,7 @@ class LstmAutoencoderPk(nn.Module):
         input_size = model_params['input_size']
         hidden_size = model_params['hidden_size']
         latent_dim = model_params['latent_dim']
+        self.pooling = model_params['pooling']
         self.num_layers_enc = model_params['num_encoder_layers']
         self.num_layers_dec = model_params['num_decoder_layers']
         dropout = model_params['dropout'] if hidden_size > 1 else 0.0
@@ -72,7 +73,10 @@ class LstmAutoencoderPk(nn.Module):
         self.encoder = nn.LSTM(input_size=input_size, num_layers=self.num_layers_enc,hidden_size=hidden_size, batch_first=True, bidirectional=True, dropout=enc_dropout)
         
         # Latent space (bottleneck)
-        self.latent = nn.Linear(hidden_size * 2, latent_dim)  # 2 * hidden_size for bidirectional
+        if self.pooling:
+            self.latent = nn.Linear(hidden_size * 4, latent_dim) # account for mean pooling
+        else:
+            self.latent = nn.Linear(hidden_size * 2, latent_dim)  # 2 * hidden_size for bidirectional
         
         # Decoder LSTM
         self.latent_to_hidden = nn.Linear(latent_dim, hidden_size)
@@ -107,6 +111,14 @@ class LstmAutoencoderPk(nn.Module):
     
     @torch.no_grad()
     def decode(self, z: torch.tensor, max_len: int):
+        """
+        Decode from latent vector - evaluation
+        
+        :param z: latent input vector
+        :type z: torch.tensor
+        :param max_len: Description
+        :type max_len: int
+        """
         self.eval()
         B = z.shape[0]
         device = z.device
@@ -124,6 +136,7 @@ class LstmAutoencoderPk(nn.Module):
             y, (h, c) = self.decoder_lstm(x, (h,c))
             x = self.decoder_out(y)
             outs.append(x)
+
         return torch.cat(outs, dim=1)
 
     def forward(self, packed_input: PackedSequence, padded_input: torch.Tensor, lengths, learned_start_token = False, teacher_forcing=True, teacher_forcing_ratio = 1.0, noise_std = 0.0):
@@ -138,10 +151,23 @@ class LstmAutoencoderPk(nn.Module):
         h_top_bwd = h_n[-1]
         
         #h_n = torch.cat((h_n[-2], h_n[-1]), dim=1)
-        h_n = torch.cat((h_top_fwd, h_top_bwd), dim=1) 
-        
+        h_n = torch.cat((h_top_fwd, h_top_bwd), dim=1) # gives last hidden
+        latent_input = h_n
+
+        # Mean pooling
+        if self.pooling:
+            enc_out_padded, _ = pad_packed_sequence(enc_out, batch_first=True) # pad out packed sequence
+            B, T, _ = enc_out_padded.shape
+
+            lengths = lengths.to(enc_out_padded.device)
+            mask = (torch.arange(T, device=enc_out_padded.device)[None, :] < lengths[:, None]).unsqueeze(-1).float()
+            mean_hidden = (enc_out_padded*mask).sum(dim=1) / lengths.unsqueeze(-1).float()
+
+            latent_input = torch.cat([h_n, mean_hidden], dim=1)
+            latent = self.latent(latent_input)
+            
         # Latent space (bottleneck)
-        latent = self.latent(h_n)  # Shape: [batch_size, latent_dim]
+        latent = self.latent(latent_input)  # Shape: [batch_size, latent_dim]
         
         # Decoder LSTM input will be the latent vector
         #hidden = self.latent_to_hidden(latent).unsqueeze(0)

@@ -30,3 +30,22 @@ def plot_reconstruction(model, dataset, output_dir = None, device = "cuda", n_ex
             plt.savefig(output_dir+'/training_reconstruction_example.pdf')
             plt.savefig(output_dir+'/training_reconstruction_example.png')
         plt.show()
+
+def plot_training_error(training_info: dict, output_dir: str):
+    """
+    Plots training and validation error
+    """
+    training_loss = training_info['epoch_mse_train']
+    val_ar_loss = training_info['epoch_mse_val_ar']
+    val_tf_loss = training_info['epoch_mse_val_tf']
+    plt.plot(training_loss, color='black', label='Training Loss')
+    plt.plot(val_ar_loss, color='green', label='Val AR Loss')
+    plt.plot(val_tf_loss, color='blue', lable='Val TF Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.tight_layout()
+    if output_dir:
+        plt.savefig(output_dir+'/training_error.pdf')
+        plt.savefig(output_dir+'/training_error.png')
+    plt.show()

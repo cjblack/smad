@@ -41,6 +41,13 @@ def load_data(fname):
 
     if data:
         return data
+    
+def split_train_val(data: list, val_size=0.2, train_size=0.8):
+    data_len = len(data)
+    num_val = int(round(val_size*data_len))
+    train_data = data[:data_len - num_val]
+    val_data = data[data_len - num_val:]
+    return train_data, val_data
 
 def torch_load_data(fname):
     data = torch.load(fname)
@@ -58,4 +65,4 @@ def pickle_load_data(fname):
 def json_save_data(fname, data):
     with open(fname, 'w') as f:
         f.write(data)
-        
+
