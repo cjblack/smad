@@ -20,7 +20,7 @@ if __name__ == "__main__":
     data_test = load_data(data_path / test_set)
     data_train, data_val = split_train_val(data_train)
     dataset_train = SeqDataSet(data_train)
-    dataset_val = SeqDataSet(dataset_val)
+    dataset_val = SeqDataSet(data_val)
     dataset_test = SeqDataSet(data_test)
     batch_size = 32
     train_loader = create_data_loader(data=dataset_train, batch_size=batch_size, collate_fn = collate_fn)
