@@ -15,8 +15,9 @@ def evaluate(model, dataloader, teacher_forcing=False):
         for packed, padded, lengths in dataloader:
             padded = padded.to(device)
             packed = packed.to(device)
-            if isinstance(lengths, torch.Tensor):
-                lengths = lengths.cpu()
+            lengths = torch.tensor(lengths, device=device)
+            #if isinstance(lengths, torch.Tensor):
+            #    lengths = lengths.cpu()
 
             decoded = model(packed, padded, lengths, teacher_forcing=teacher_forcing)
             z = model.encode(packed, lengths)
