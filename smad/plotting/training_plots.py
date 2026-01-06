@@ -42,15 +42,16 @@ def plot_training_error(training_info: dict, output_dir = None):
     training_loss = training_info['epoch_mse_train']
     val_ar_loss = training_info['epoch_mse_val_ar']
     val_tf_loss = training_info['epoch_mse_val_tf']
-    plt.plot(training_loss, color='black', linewidth=2, label='Training Loss')
-    plt.plot(val_ar_loss, color='green', linewidth=2, linestyle='--', label='Val AR Loss')
-    plt.plot(val_tf_loss, color='blue', linewidth=2, linestyle='--', label='Val TF Loss')
-    plt.xlabel('Epoch')
-    plt.legend()
+    fig, ax = plt.subplots()
+    ax.plot(training_loss, color='black', linewidth=2, label='Training Loss')
+    ax.plot(val_ar_loss, color='green', linewidth=2, linestyle='--', label='Val AR Loss')
+    ax.plot(val_tf_loss, color='blue', linewidth=2, linestyle='--', label='Val TF Loss')
+    ax.set_xlabel('Epoch')
+    ax.legend()
     loss_name = training_info['cfg']['params']['training']['criterion']
-    plt.ylabel(f"{loss_name}")
+    ax.set_ylabel(f"{loss_name}")
     cfg_name = training_info['cfg']['cfg_name']
-    plt.title(f'Training Loss - {cfg_name}')
+    ax.set_title(f'Training Loss - {cfg_name}')
     if output_dir:
         plt.savefig(output_dir+'/training_error.pdf')
         plt.savefig(output_dir+'/training_error.png')
