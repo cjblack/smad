@@ -9,13 +9,14 @@ def plot_reconstruction(model, dataset, output_dir = None, device = "cuda", n_ex
 
     with torch.no_grad():
         for i in range(n_examples):
-            seq = dataset[i].to('cpu').unsqueeze(0)
+            seq = dataset[i].to(device).unsqueeze(0)
             length = [seq.size(1)]
             
             # pad and pack
             packed = torch.nn.utils.rnn.pack_padded_sequence(seq, length, batch_first=True,enforce_sorted=False)
-            packed.to(device)
-            seq.to(device)
+            #packed.to(device)
+            #seq.to(device)
+            # for some reason when making packed sequence, length has to be on cpu, but obviously needs to be on GPU for model?
             length = torch.tensor(length,device=device)
             # forward pass
 
