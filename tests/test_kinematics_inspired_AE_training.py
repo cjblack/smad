@@ -1,5 +1,5 @@
 from pathlib import Path
-from smad.training.train import train_model_packed, auto_regressive_fine_tuning
+from smad.training.train import train_model_kinematics_inspired, auto_regressive_fine_tuning
 from smad.training.utils import collate_fn
 from smad.data.utils import load_data, create_data_loader, split_train_val
 from smad.data.data_types import SeqDataSet
@@ -24,7 +24,7 @@ def test_training():
     val_loader = create_data_loader(data=dataset_val, shuffle=False, batch_size=batch_size, collate_fn=collate_fn)
     print('Autoencoder Training Test V2.')
 
-    model, training_info, criterion, optimizer, device = train_model_packed(config_file, train_loader, val_loader, noise=0.05)
+    model, training_info, criterion, optimizer, device = train_model_kinematics_inspired(config_file, train_loader, val_loader, noise=0.05)
     model, fine_tuning_info = auto_regressive_fine_tuning(model, train_loader, training_info, criterion, optimizer, device)
     training_mse = training_info['epoch_mse_train'][0]
     fine_tuning_mse = fine_tuning_info['total_loss'][0]

@@ -14,8 +14,11 @@ def collate_fn(batch):
     packed = pack_padded_sequence(padded, lengths, batch_first=True, enforce_sorted=False)
     return packed, padded, lengths
 
-def teacher_forcing_inverse_sigmoid(epoch, k=5.0):
-    return k / (k+np.exp(epoch / k))
+def teacher_forcing_inverse_sigmoid(epoch, initial, final, total_epochs, decay, k=5.0):
+    decay_epochs = max(1, int(round(decay*total_epochs)))
+    t = min(max(epoch / decay_epochs, 0.0), 1.0)
+    inv_sig = 1.0 / (1.0 + np.exp(k*(t-0.5)))
+    return final + (initial - final) * inv_sig #k / (k+np.exp(epoch / k))
 
 def teacher_forcing_linear(epoch, initial, final, total_epochs=200, decay=0.6):
     decay_epochs = int(round(decay*total_epochs))
@@ -23,7 +26,7 @@ def teacher_forcing_linear(epoch, initial, final, total_epochs=200, decay=0.6):
 
 def get_teacher_forcing_ratio(tf_function, epoch, total_epochs=200, k=5.0, initial=1.0, final=0.2, decay=0.6):
     if tf_function == 'inverse_sigmoid':
-        tf_ratio = teacher_forcing_inverse_sigmoid(epoch,k)
+        tf_ratio = teacher_forcing_inverse_sigmoid(epoch, initial, final, total_epochs, decay, k)
     elif tf_function == 'linear':
         tf_ratio = teacher_forcing_linear(epoch, initial, final, total_epochs, decay)
     elif tf_function == 'off':

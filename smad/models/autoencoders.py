@@ -249,13 +249,15 @@ class MultiModalLSTM(nn.Module):
         # Encoder LSTM with Bidirectional
         self.encoder = nn.LSTM(input_size=input_size, num_layers=self.num_layers_enc,hidden_size=hidden_size, batch_first=True, bidirectional=True, dropout=enc_dropout)
         self.encoder_2 = nn.LSTM(input_size=input_size, num_layers=self.num_layers_enc,hidden_size=hidden_size, batch_first=True, bidirectional=True, dropout=enc_dropout)
-
         # Latent space (bottleneck)
         if self.pooling:
             self.latent = nn.Linear(hidden_size * 4, latent_dim) # account for mean pooling
+            self.norm1 = nn.LayerNorm(hidden_size*4, hidden_size*4)
+            self.norm2 = nn.LayerNorm(hidden_size*4, hidden_size*4)
         else:
             self.latent = nn.Linear(hidden_size * 2, latent_dim)  # 2 * hidden_size for bidirectional
-        
+            self.norm1 = nn.LayerNorm(hidden_size*2, hidden_size*2)
+            self.norm2 = nn.LayerNorm(hidden_size*2, hidden_size*2)
         # Decoder LSTM layers
         self.latent_to_hidden = nn.Linear(latent_dim, hidden_size)
         self.decoder_lstm = nn.LSTM(input_size=input_size, num_layers=self.num_layers_dec, hidden_size=hidden_size, batch_first=True, dropout=dec_dropout)
@@ -263,6 +265,7 @@ class MultiModalLSTM(nn.Module):
         
         # Final linear layer to reconstruct the input sequence
         self.decoder_out = nn.Linear(hidden_size, input_size)
+        self.decoder_out2 = nn.Linear(hidden_size, input_size)
         
         # Dropout layers
         self.input_dropout = nn.Dropout(dropout)
@@ -329,31 +332,50 @@ class MultiModalLSTM(nn.Module):
 
         return torch.cat(outs, dim=1)
 
-    def forward(self, packed_input: PackedSequence, padded_input: torch.Tensor, lengths, learned_start_token = False, teacher_forcing=True, teacher_forcing_ratio = 1.0, noise_std = 0.0):
+    def forward(self, packed_input_1: PackedSequence, padded_input_1: torch.Tensor, lengths_1, packed_input_2: PackedSequence, padded_input_2: torch.Tensor, lengths_2, learned_start_token = False, teacher_forcing=True, teacher_forcing_ratio = 1.0, noise_std = 0.0):
         
-        batch_size, max_len, feat_dim = padded_input.shape
+        batch_size_1, max_len_1, feat_dim_1 = padded_input_1.shape
+        batch_size_2, max_len_2, feat_dim_2 = padded_input_2.shape
 
         # Encoder (Bidirectional LSTM)
-        enc_out, (h_n, c_n) = self.encoder(packed_input)
+        enc_out_1, (h_n1, c_n1) = self.encoder(packed_input_1)
+        enc_out_2, (h_n2, c_n2) = self.encoder(packed_input_2)
         # Take the last hidden state (concatenating the forward and backward hidden states)
         # Shape: [batch_size, hidden_size*2] due to bidirectionality
-        h_top_fwd = h_n[-2]
-        h_top_bwd = h_n[-1]
+        h_top_fwd1 = h_n1[-2]
+        h_top_bwd1 = h_n1[-1]
+
+        h_top_fwd2 = h_n2[-2]
+        h_top_bwd2 = h_n2[-1]
         
         #h_n = torch.cat((h_n[-2], h_n[-1]), dim=1)
-        h_n = torch.cat((h_top_fwd, h_top_bwd), dim=1) # gives last hidden
-        latent_input = h_n
+        h_n1 = torch.cat((h_top_fwd1, h_top_bwd1), dim=1) # gives last hidden
+        h_n2 = torch.cat((h_top_fwd2, h_top_bwd_2), dim=1)
+        
+        h_n = self.norm1(h_n1)+self.norm2(h_n2)
+        #latent_input = h_n1+h_n2
+        #latent_input2 = h_n2
 
         # Mean pooling
         if self.pooling:
-            enc_out_padded, _ = pad_packed_sequence(enc_out, batch_first=True) # pad out packed sequence
-            B, T, _ = enc_out_padded.shape
+            enc_out_padded1, _ = pad_packed_sequence(enc_out_1, batch_first=True) # pad out packed sequence
+            enc_out_padded2, _ = pad_packed_Sequence(enc_out_2, batch_first=True)
+            B1, T1, _ = enc_out_padded1.shape
+            B2, T2, _ = enc_out_padded2.shape
 
-            lengths = lengths.to(enc_out_padded.device)
-            mask = (torch.arange(T, device=enc_out_padded.device)[None, :] < lengths[:, None]).unsqueeze(-1).float()
-            mean_hidden = (enc_out_padded*mask).sum(dim=1) / lengths.unsqueeze(-1).float()
+            lengths_1 = lengths_1.to(enc_out_padded1.device)
+            lengths_2 = lengths_2.to(enc_out_padded2.device)
+            mask1 = (torch.arange(T1, device=enc_out_padded1.device)[None, :] < lengths_1[:, None]).unsqueeze(-1).float()
+            mask2 = (torch.arange(T2, device=enc_out_padded2.device)[None, :] < lengths_2[:, None]).unsqueeze(-1).float()
 
+
+            mean_hidden1 = (enc_out_padded1*mask1).sum(dim=1) / lengths_1.unsqueeze(-1).float()
+            mean_hidden2 = (enc_out_padded2*mask2).sum(dim=1) / lengths_2.unsqueeze(-1).float()
+            h_n = h_n1+h_n2
+            mean_hidden = mean_hidden1 + mean_hidden2
             latent_input = torch.cat([h_n, mean_hidden], dim=1)
+        else:
+            latent_input = self.norm1(h_n1)+ self.norm2(h_n2)
 
         # Latent space (bottleneck)
         latent = self.latent(latent_input)  # Shape: [batch_size, latent_dim]
