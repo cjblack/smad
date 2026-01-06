@@ -9,13 +9,16 @@ def plot_reconstruction(model, dataset, output_dir = None, device = "cuda", n_ex
 
     with torch.no_grad():
         for i in range(n_examples):
-            seq = dataset[i].to(device).unsqueeze(0)
+            seq = dataset[i].to('cpu').unsqueeze(0)
             length = [seq.size(1)]
-
+            
             # pad and pack
             packed = torch.nn.utils.rnn.pack_padded_sequence(seq, length, batch_first=True,enforce_sorted=False)
-
+            packed.to(device)
+            seq.to(device)
+            length = torch.tensor(length,device=device)
             # forward pass
+
             reconstruction = model(packed, seq, length)
             reconstruction = reconstruction.squeeze(0).cpu().numpy()
             original = seq.squeeze(0).cpu().numpy()
@@ -31,20 +34,22 @@ def plot_reconstruction(model, dataset, output_dir = None, device = "cuda", n_ex
             plt.savefig(output_dir+'/training_reconstruction_example.png')
         plt.show()
 
-def plot_training_error(training_info: dict, output_dir: str):
+def plot_training_error(training_info: dict, output_dir = None):
     """
     Plots training and validation error
     """
     training_loss = training_info['epoch_mse_train']
     val_ar_loss = training_info['epoch_mse_val_ar']
     val_tf_loss = training_info['epoch_mse_val_tf']
-    plt.plot(training_loss, color='black', label='Training Loss')
-    plt.plot(val_ar_loss, color='green', label='Val AR Loss')
-    plt.plot(val_tf_loss, color='blue', lable='Val TF Loss')
+    plt.plot(training_loss, color='black', linewidth=2, label='Training Loss')
+    plt.plot(val_ar_loss, color='green', linewidth=2, linestyle='--', label='Val AR Loss')
+    plt.plot(val_tf_loss, color='blue', linewidth=2, linestyle='--', label='Val TF Loss')
     plt.xlabel('Epoch')
-    plt.ylabel('Loss')
     plt.legend()
-    plt.tight_layout()
+    loss_name = training_info['cfg']['params']['training']['criterion']
+    plt.ylabel(f"{loss_name}")
+    cfg_name = training_info['cfg']['cfg_name']
+    plt.title(f'Training Loss - {cfg_name}')
     if output_dir:
         plt.savefig(output_dir+'/training_error.pdf')
         plt.savefig(output_dir+'/training_error.png')
