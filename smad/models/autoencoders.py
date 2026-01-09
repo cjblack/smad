@@ -343,30 +343,48 @@ class MultiModalLSTM(nn.Module):
 
         return torch.cat(outs, dim=1)
 
-    def forward(self, packed_input_1: PackedSequence, padded_input_1: torch.Tensor, lengths_1, packed_input_2: PackedSequence, padded_input_2: torch.Tensor, lengths_2, learned_start_token = False, teacher_forcing=True, teacher_forcing_ratio = 1.0, noise_std = 0.0):
-        
-        batch_size_1, max_len_1, feat_dim_1 = padded_input_1.shape
-        batch_size_2, max_len_2, feat_dim_2 = padded_input_2.shape
+    def forward(self, data_dict: dict, learned_start_token = False, teacher_forcing=True, teacher_forcing_ratio = 1.0, noise_std = 0.0):#packed_input_1: PackedSequence, padded_input_1: torch.Tensor, lengths_1, packed_input_2: PackedSequence, padded_input_2: torch.Tensor, lengths_2, learned_start_token = False, teacher_forcing=True, teacher_forcing_ratio = 1.0, noise_std = 0.0):
+        # Need to find a simple solution to have keys in data dict = keys in cfg file #
+
+        batch_size = dict()
+        max_len = dict()
+        feat_dim = dict()
+        packed_data = dict()
+        padded_data = dict()
+
+
+        for key, val in data_dict.items():
+            batch_size[key] = val['padded_input'].shape[0]
+            max_len[key] = val['padded_input'].shape[1]
+            feat_dim[key] = val['padded_input'].shape[2]
+            packed_data[key] = val['packed_input']
+            padded_data[key] = val['padded_input']
 
         # Encoder (Bidirectional LSTM)
-        enc_out_1, (h_n1, c_n1) = self.encoder(packed_input_1)
-        enc_out_2, (h_n2, c_n2) = self.encoder(packed_input_2)
+        enc_out = []
+        h_n = []
+        c_n = []
+        h_top_fwd = []
+        h_top_bwd = []
+
+        for key, enclayer in self.encoders.items():
+            enc_out_, (h_n_, c_n_) = (enclayer(packed_data[key]))
+            enc_out.append(enc_out_)
+            h_n.append(h_n_)
+            c_n.append(c_n_)    
+            h_top_fwd.append(h_n_[-2])
+            h_top_bwd.append(h_n_[-1])
         # Take the last hidden state (concatenating the forward and backward hidden states)
         # Shape: [batch_size, hidden_size*2] due to bidirectionality
-        h_top_fwd1 = h_n1[-2]
-        h_top_bwd1 = h_n1[-1]
-
-        h_top_fwd2 = h_n2[-2]
-        h_top_bwd2 = h_n2[-1]
+        for i in range(len(h_n)):
+            h_n[i] = torch.cat((h_top_fwd[i], h_top_bwd[i]), dim=1)
         
-        #h_n = torch.cat((h_n[-2], h_n[-1]), dim=1)
-        h_n1 = torch.cat((h_top_fwd1, h_top_bwd1), dim=1) # gives last hidden
-        h_n2 = torch.cat((h_top_fwd2, h_top_bwd_2), dim=1)
-        
-        h_n = self.norm1(h_n1)+self.norm2(h_n2)
-        #latent_input = h_n1+h_n2
-        #latent_input2 = h_n2
+        for i, (key, normlayer) in enumerate(self.norms):
+            h_n[i] = normlayer(h_n[i])
 
+        # Sum // concatenate hidden state
+        h_n = sum(h_n)
+        
         # Mean pooling
         if self.pooling:
             enc_out_padded1, _ = pad_packed_sequence(enc_out_1, batch_first=True) # pad out packed sequence
