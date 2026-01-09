@@ -1,0 +1,22 @@
+cfg_name: smad_multimodal_autoencoder
+model_name: MultiModalLSTM
+module: smad.models.autoencoders
+params:
+  model:
+    hidden_size: 128
+    input_size: {'ephys': 4, 'kinematic': 4}
+    latent_dim: 64
+    num_encoder_layers: 2
+    num_decoder_layers: 2
+    pooling: True
+    dropout: 0.0
+    skip_connections: True
+  training:
+    batch_size: 32
+    criterion: MSELoss
+    epochs: 200
+    learning_rate: 0.0001
+    optimizer: Adam
+    autoregressive_ft:
+      epochs: 5
+      learning_rate: 0.00001

@@ -120,10 +120,10 @@ def train_model_packed(model_params: str | dict, train_loader: torch.utils.data.
             outputs = model(packed, padded, lengths, teacher_forcing=teacher_forcing, teacher_forcing_ratio=tf_ratio, noise_std = noise_std)
 
             # Masked loss
-            target = padded[:, 1:, :]
+            target = padded[:, :, :]
             max_len_minus1 = target.size(1)
 
-            mask = torch.arange(max_len_minus1, device=device)[None, :] < (lengths-1)[:, None]
+            mask = torch.arange(max_len_minus1, device=device)[None, :] < lengths[:, None]
             mask = mask.unsqueeze(-1)
 
             per_timestep_loss = (criterion(outputs, target)) # * mask)
@@ -216,18 +216,19 @@ def train_model_kinematics_inspired(model_params: str | dict, train_loader: torc
             optimizer.zero_grad() # zero out gradient
 
             # Forward pass
+            print('hi')
             outputs = model(packed, padded, lengths, teacher_forcing=teacher_forcing, teacher_forcing_ratio=tf_ratio, noise_std = noise_std)
-
+            print('bye')
             # Masked loss
-            target = padded[:, 1:, :]
+            target = padded[:, :, :]
             max_len_minus1 = target.size(1)
 
-            mask = torch.arange(max_len_minus1, device=device)[None, :] < (lengths-1)[:, None]
+            mask = torch.arange(max_len_minus1, device=device)[None, :] < lengths[:, None] # mask over padded timesteps
             mask = mask.unsqueeze(-1)
 
             # Criterion Loss
             per_timestep_loss = (criterion(outputs, target)) #* mask)
-            masked_loss = per_timestep_loss * mask
+            masked_loss = per_timestep_loss * mask # need to do this as criterion takes into account padding
             batch_loss_sum = masked_loss.sum()
 
             denom_recon = mask.sum()*outputs.size(-1) + 1e-8
@@ -286,10 +287,10 @@ def validation_eval(model, val_loader, criterion, device, tf_ratio):
             out_ar = model(packed, padded, lengths, teacher_forcing=False, noise_std=0.0)
             out_tf = model(packed, padded, lengths, teacher_forcing=True, teacher_forcing_ratio=tf_ratio, noise_std=0.0)
 
-            target = padded[:, 1:, :]
+            target = padded[:, :, :]
             max_len_minus1 = target.size(1)
 
-            mask = torch.arange(max_len_minus1, device=device)[None, :] < (lengths-1)[:, None]
+            mask = torch.arange(max_len_minus1, device=device)[None, :] < lengths[:, None]
             mask = mask.unsqueeze(-1)
 
             per_timestep_loss_ar = (criterion(out_ar, target) * mask)
@@ -347,9 +348,9 @@ def auto_regressive_fine_tuning(model, train_loader: torch.utils.data.DataLoader
             # auto regress without teacher forcing
             outputs = model(packed, padded, lengths, teacher_forcing=False, teacher_forcing_ratio=0.0)
 
-            target = padded[:,1:,:]
+            target = padded[:,:,:]
             max_len_minus1 = target.size(1)
-            mask = torch.arange(max_len_minus1, device=device)[None, :] < (lengths - 1)[:, None]
+            mask = torch.arange(max_len_minus1, device=device)[None, :] < lengths[:, None]
             mask = mask.unsqueeze(-1)
 
             masked_loss = (criterion(outputs, target)*mask)

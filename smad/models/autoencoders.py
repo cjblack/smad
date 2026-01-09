@@ -193,19 +193,20 @@ class LstmAutoencoderPk(nn.Module):
         else:
             # trains on initial input
             decoder_input = padded_input[:, 0, :].unsqueeze(1) # always start with first input, even though this is not an SOS token
-        for t in range(1, max_len):
+        for t in range(max_len):
             decoder_input = self.input_dropout(decoder_input) # dropout
             out, (hidden, c0) = self.decoder_lstm(decoder_input, (hidden, c0))
             out = self.output_dropout(out) # dropout
             pred = self.decoder_out(out)
             outputs.append(pred)
-            if teacher_forcing and random.random() < teacher_forcing_ratio:
-                decoder_input = padded_input[:,t,:].unsqueeze(1)
-            else:
-                decoder_input = pred
-            if noise_std > 0.0:
-                noise = torch.randn_like(decoder_input)*noise_std # creates random gaussian noise
-                decoder_input = decoder_input+noise # adds random gaussian noise to input
+            if t+1 < max_len:
+                if teacher_forcing and random.random() < teacher_forcing_ratio:
+                    decoder_input = padded_input[:,t,:].unsqueeze(1)
+                else:
+                    decoder_input = pred
+                if noise_std > 0.0:
+                    noise = torch.randn_like(decoder_input)*noise_std # creates random gaussian noise
+                    decoder_input = decoder_input+noise # adds random gaussian noise to input
         #decoder_out, _ = self.decoder_lstm(decoder_input)
         # Reconstruct the original input
         #decoded = self.decoder_out(decoder_out)
@@ -213,7 +214,7 @@ class LstmAutoencoderPk(nn.Module):
 
         if self.use_skip:
             alpha = torch.sigmoid(self.skip_alpha) # constrain between 0-1
-            decoded = alpha * decoded + (1-alpha)*padded_input[:,1:,:]
+            decoded = alpha * decoded + (1-alpha)*padded_input
 
         return decoded
     
@@ -221,10 +222,10 @@ class LstmAutoencoderPk(nn.Module):
 
 class MultiModalLSTM(nn.Module):
     def __init__(self, model_params):#input_size, hidden_size, latent_dim):
-        super(LstmAutoencoderPk, self).__init__()
+        super(MultiModalLSTM, self).__init__()
 
         # Extract model params from dictionary
-        input_size = model_params['input_size']
+        self.input_size = model_params['input_size']
         hidden_size = model_params['hidden_size']
         latent_dim = model_params['latent_dim']
         self.pooling = model_params['pooling']
@@ -232,7 +233,15 @@ class MultiModalLSTM(nn.Module):
         self.num_layers_dec = model_params['num_decoder_layers']
         dropout = model_params['dropout'] if hidden_size > 1 else 0.0
         use_skip = model_params['skip_connections']
-        
+        self.num_modalities = len(input_size)
+
+        # Set lists for functions
+        self.encoders = nn.ModuleDict()
+        self.decoders = nn.ModuleDict()
+        self.norms = nn.ModuleDict()
+        self.output_linears = nn.ModuleDict()
+        self.start_token_params = nn.ParameterDict()
+
         # LSTM dropout only works when num_layers > 1
         enc_dropout = dropout if self.num_layers_enc > 1 else 0.0
         dec_dropout = dropout if self.num_layers_dec > 1 else 0.0
@@ -242,34 +251,36 @@ class MultiModalLSTM(nn.Module):
         if self.use_skip:
             self.skip_alpha  = nn.Parameter(torch.tensor(0.5))
 
-        # Set start token for potential use in training
-        start_token = nn.Parameter(torch.randn(1,1,input_size))
-        self.register_parameter('start_token',start_token)
-        
-        # Encoder LSTM with Bidirectional
-        self.encoder = nn.LSTM(input_size=input_size, num_layers=self.num_layers_enc,hidden_size=hidden_size, batch_first=True, bidirectional=True, dropout=enc_dropout)
-        self.encoder_2 = nn.LSTM(input_size=input_size, num_layers=self.num_layers_enc,hidden_size=hidden_size, batch_first=True, bidirectional=True, dropout=enc_dropout)
-        # Latent space (bottleneck)
         if self.pooling:
-            self.latent = nn.Linear(hidden_size * 4, latent_dim) # account for mean pooling
-            self.norm1 = nn.LayerNorm(hidden_size*4, hidden_size*4)
-            self.norm2 = nn.LayerNorm(hidden_size*4, hidden_size*4)
+            self.input_factor = 4
         else:
-            self.latent = nn.Linear(hidden_size * 2, latent_dim)  # 2 * hidden_size for bidirectional
-            self.norm1 = nn.LayerNorm(hidden_size*2, hidden_size*2)
-            self.norm2 = nn.LayerNorm(hidden_size*2, hidden_size*2)
+            self.input_factor = 2
+        
+        # Fill Module dicts
+        for key, val in self.input_size.items():
+            # Create bidirectional LSTM encoding layer per modality
+            self.encoders[key] = nn.LSTM(input_size=val, num_layers=self.num_layers_enc, hidden_size=hidden_size, batch_first=True, bidirectional=True, dropout=enc_dropout)
+            # Create unidirectional LSTM decoder layer per modality
+            self.decoders[key] = nn.LSTM(input_size=val, num_layers=self.num_layers_dec, hidden_size=hidden_size, batch_first=True, dropout=dec_dropout)
+            # Create input norm layers prior to fusion
+            self.norms[key] = nn.LayerNorm(hidden_size*self.input_factor, hidden_size*self.input_factor)
+            # Create output linear layers for reconstruction of input sequence
+            self.output_linears[key] = nn.Linear(hidden_size, val)
+
+            # Create parameter dict for start token parameters to be used in training if desired
+            self.start_token_params[key] = nn.Parameter(torch.randn(1,1,val))
+
+        
+        # Latent space (bottleneck)
+        self.latent = nn.Linear(hidden_size * self.input_factor, latent_dim)
+
         # Decoder LSTM layers
         self.latent_to_hidden = nn.Linear(latent_dim, hidden_size)
-        self.decoder_lstm = nn.LSTM(input_size=input_size, num_layers=self.num_layers_dec, hidden_size=hidden_size, batch_first=True, dropout=dec_dropout)
-        self.decoder_2 = nn.LSTM(input_size=input_size, num_layers=self.num_layers_dec, hidden_size=hidden_size, batch_first=True, dropout=dec_dropout)
-        
-        # Final linear layer to reconstruct the input sequence
-        self.decoder_out = nn.Linear(hidden_size, input_size)
-        self.decoder_out2 = nn.Linear(hidden_size, input_size)
         
         # Dropout layers
         self.input_dropout = nn.Dropout(dropout)
         self.output_dropout = nn.Dropout(dropout)
+        
 
     @torch.no_grad()
     def encode(self, packed_input: PackedSequence, lengths: torch.Tensor):
