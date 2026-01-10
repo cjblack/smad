@@ -351,7 +351,8 @@ class MultiModalLSTM(nn.Module):
         feat_dim = dict()
         packed_data = dict()
         padded_data = dict()
-
+        outputs = dict()
+        decoded = dict()
 
         for key, val in data_dict.items():
             batch_size[key] = val['padded_input'].shape[0]
@@ -359,7 +360,8 @@ class MultiModalLSTM(nn.Module):
             feat_dim[key] = val['padded_input'].shape[2]
             packed_data[key] = val['packed_input']
             padded_data[key] = val['padded_input']
-
+            outputs[key] = []
+            decoded[key] = []
         # Encoder (Bidirectional LSTM)
         enc_out = []
         h_n = []
@@ -387,24 +389,22 @@ class MultiModalLSTM(nn.Module):
         
         # Mean pooling
         if self.pooling:
-            enc_out_padded1, _ = pad_packed_sequence(enc_out_1, batch_first=True) # pad out packed sequence
-            enc_out_padded2, _ = pad_packed_Sequence(enc_out_2, batch_first=True)
-            B1, T1, _ = enc_out_padded1.shape
-            B2, T2, _ = enc_out_padded2.shape
+            mean_hidden = []
+            for key, enc_output in enc_out.items():
+                enc_out_padded, _ = pad_packed_sequence(enc_output, batch_first=True)
+                
+                B, T, _ = enc_out_padded.shape
 
-            lengths_1 = lengths_1.to(enc_out_padded1.device)
-            lengths_2 = lengths_2.to(enc_out_padded2.device)
-            mask1 = (torch.arange(T1, device=enc_out_padded1.device)[None, :] < lengths_1[:, None]).unsqueeze(-1).float()
-            mask2 = (torch.arange(T2, device=enc_out_padded2.device)[None, :] < lengths_2[:, None]).unsqueeze(-1).float()
+                lengths = data_dict[key]['lengths'].to(enc_out_padded.device)
 
+                mask = (torch.arange(T, device=enc_out_padded.device)[None,:] < lengths[:,None]).unsqueeze(-1).float()
 
-            mean_hidden1 = (enc_out_padded1*mask1).sum(dim=1) / lengths_1.unsqueeze(-1).float()
-            mean_hidden2 = (enc_out_padded2*mask2).sum(dim=1) / lengths_2.unsqueeze(-1).float()
-            h_n = h_n1+h_n2
-            mean_hidden = mean_hidden1 + mean_hidden2
+                mean_hidden.append((enc_out_padded*mask).sum(dim=1) / lengths.unsqueeze(-1).float()) # normalise by actual seq len
+
+            mean_hidden = sum(mean_hidden)
             latent_input = torch.cat([h_n, mean_hidden], dim=1)
         else:
-            latent_input = self.norm1(h_n1)+ self.norm2(h_n2)
+            latent_input = h_n
 
         # Latent space (bottleneck)
         latent = self.latent(latent_input)  # Shape: [batch_size, latent_dim]
@@ -415,34 +415,37 @@ class MultiModalLSTM(nn.Module):
         hidden = h0_single.unsqueeze(0).repeat(self.num_layers_dec, 1, 1)
         c0 = torch.zeros_like(hidden)
 
-        outputs = []
-
+        #outputs = []
+        
+        ### NEEDS TO BE UPDATED ###
         if learned_start_token:
             # trains on start token - more generalizable
             decoder_input = self.start_token.expand(batch_size, 1, -1)
         else:
             # trains on initial input
-            decoder_input = padded_input[:, 0, :].unsqueeze(1) # always start with first input, even though this is not an SOS token
-        for t in range(1, max_len):
-            decoder_input = self.input_dropout(decoder_input) # dropout
-            out, (hidden, c0) = self.decoder_lstm(decoder_input, (hidden, c0))
-            out = self.output_dropout(out) # dropout
-            pred = self.decoder_out(out)
-            outputs.append(pred)
-            if teacher_forcing and random.random() < teacher_forcing_ratio:
-                decoder_input = padded_input[:,t,:].unsqueeze(1)
-            else:
-                decoder_input = pred
-            if noise_std > 0.0:
-                noise = torch.randn_like(decoder_input)*noise_std # creates random gaussian noise
-                decoder_input = decoder_input+noise # adds random gaussian noise to input
+            decoder_input = {key: x['padded'][:, 0, :] for key, x in data_dict.items()}#padded_input[:, 0, :].unsqueeze(1) # always start with first input, even though this is not an SOS token
+        for t in range(max_len):
+            for key, declayer in self.decoders.items():
+                out, (hidden, c0) = declayer(decoder_input[key], (hidden, c0))
+                pred = self.output_linears[key](out)
+                outputs[key].append(pred)
+
+                if teacher_forcing and random.random() < teacher_forcing_ratio:
+                    decoder_input[key] = data_dict[key]['padded_input'][:, t, :]#{key: x['padded_input'][:, t, :] for key, x in data_dict.items()}#padded_input[:,t,:].unsqueeze(1)
+                else:
+                    decoder_input[key] = pred
+                if noise_std > 0.0:
+                    noise = torch.randn_like(decoder_input[key])*noise_std # creates random gaussian noise
+                    decoder_input[key] = decoder_input[key]+noise # adds random gaussian noise to input
         #decoder_out, _ = self.decoder_lstm(decoder_input)
         # Reconstruct the original input
         #decoded = self.decoder_out(decoder_out)
-        decoded = torch.cat(outputs, dim=1)
-
-        if self.use_skip:
-            alpha = torch.sigmoid(self.skip_alpha) # constrain between 0-1
-            decoded = alpha * decoded + (1-alpha)*padded_input[:,1:,:]
+        #decoded = torch.cat(outputs, dim=1)
+        for key, _ in data_dict.items():
+            decoded[key] = torch.cat(outputs[key], dim=1)
+        
+            if self.use_skip:
+                alpha = torch.sigmoid(self.skip_alpha) # constrain between 0-1
+                decoded[key] = alpha * decoded[key] + (1-alpha)*data_dict[key]['padded_input']
 
         return decoded
