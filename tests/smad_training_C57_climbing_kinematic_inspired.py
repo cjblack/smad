@@ -12,7 +12,7 @@ from pathlib import Path
 
 if __name__ == "__main__":
     # this is just for testing at the moment...
-    config_file = 'smad_multi_limb_autoencoder.yml'
+    config_file = 'smad_multi_limb_autoencoder_no_dropout.yml'
     train_set = 'climbing_C57_train.pt'
     test_set = 'climbing_C57_test.pt'
     data_path = Path(__file__).resolve().parent.parent / 'smad/data/test_sets/climbing_multilimb_C57'

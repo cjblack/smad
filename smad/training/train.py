@@ -186,6 +186,7 @@ def train_model_kinematics_inspired(model_params: str | dict, train_loader: torc
                      'epoch_time': np.empty(training_params['epochs'], dtype=np.float32),
                      'noise': noise,
                      'teacher_forcing': teacher_forcing,
+                     'ki_inspired': True,
                      'cfg':cfg}  # preallocate empty arrays for epoch loss and time
 
     # Set up training
@@ -216,9 +217,9 @@ def train_model_kinematics_inspired(model_params: str | dict, train_loader: torc
             optimizer.zero_grad() # zero out gradient
 
             # Forward pass
-            print('hi')
+
             outputs = model(packed, padded, lengths, teacher_forcing=teacher_forcing, teacher_forcing_ratio=tf_ratio, noise_std = noise_std)
-            print('bye')
+
             # Masked loss
             target = padded[:, :, :]
             max_len_minus1 = target.size(1)
