@@ -24,7 +24,7 @@ def teacher_forcing_linear(epoch, initial, final, total_epochs=200, decay=0.6):
     decay_epochs = int(round(decay*total_epochs))
     return max(final, initial * (1 - epoch / decay_epochs))
 
-def get_teacher_forcing_ratio(tf_function, epoch, total_epochs=200, k=5.0, initial=1.0, final=0.2, decay=0.6):
+def get_teacher_forcing_ratio(tf_function, epoch, total_epochs=200, k=5.0, initial=1.0, final=0.8, decay=0.6):
     if tf_function == 'inverse_sigmoid':
         tf_ratio = teacher_forcing_inverse_sigmoid(epoch, initial, final, total_epochs, decay, k)
     elif tf_function == 'linear':
