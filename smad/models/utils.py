@@ -19,9 +19,21 @@ def save_model(model, model_info, directory):
     model_name = model_info['cfg']['model_name']
     file_path = directory+f'/{model_name}_model.pth'
     model_info_path = directory+f'/{model_name}_info.pkl'
-    torch.save(model.state_dict(), file_path)
+    torch.save({'model_state': model.state_dict(), 'config': model_info['cfg']}, file_path)
     with open(model_info_path,'wb') as f:
         pickle.dump(model_info,f)
+
+def load_trained_model(file_path: str):
+    """
+    Load a pre-trained model
+    """
+    model_file = torch.load(file_path, weights_only=False)
+    state_dict = model_file['state_dict']
+    cfg = model_file['config']
+    model = create_model(cfg)
+    model.load_state_dict(state_dict)
+
+    return model
 
 def load_model_package(directory, load_model=False):
     model_package = dict()
