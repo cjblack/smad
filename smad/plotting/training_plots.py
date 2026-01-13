@@ -1,32 +1,34 @@
 import torch
 import matplotlib.pyplot as plt
 
-def plot_reconstruction(model, dataset, output_dir = None, device = "cuda", n_examples = 3):
+def plot_reconstruction(model, dataset, output_dir = None, device = "cuda", dindex = 0):
     model.eval()
-    fig, axes = plt.subplots(n_examples, 1, figsize=(10,3*n_examples))
-    if n_examples == 1:
+    S, F = dataset[dindex].shape
+    fig, axes = plt.subplots(F, 1, figsize=(10,3*F))
+    if F == 1:
         axes = [axes]
 
     with torch.no_grad():
-        for i in range(n_examples):
-            seq = dataset[i].to(device).unsqueeze(0)
-            length = [seq.size(1)]
-            
-            # pad and pack
-            packed = torch.nn.utils.rnn.pack_padded_sequence(seq, length, batch_first=True,enforce_sorted=False)
-            #packed.to(device)
-            #seq.to(device)
-            # for some reason when making packed sequence, length has to be on cpu, but obviously needs to be on GPU for model?
-            length = torch.tensor(length,device=device)
-            # forward pass
+        #for i in range(n_examples):
+        seq = dataset[dindex].to(device).unsqueeze(0)
+        length = [seq.size(1)]
+        
+        # pad and pack
+        packed = torch.nn.utils.rnn.pack_padded_sequence(seq, length, batch_first=True,enforce_sorted=False)
+        #packed.to(device)
+        #seq.to(device)
+        # for some reason when making packed sequence, length has to be on cpu, but obviously needs to be on GPU for model?
+        length = torch.tensor(length,device=device)
+        # forward pass
 
-            reconstruction = model(packed, seq, length)
-            reconstruction = reconstruction.squeeze(0).cpu().numpy()
-            original = seq.squeeze(0).cpu().numpy()
+        reconstruction = model(packed, seq, length)
+        reconstruction = reconstruction.squeeze(0).cpu().numpy()
+        original = seq.squeeze(0).cpu().numpy()
 
-            # plot
-            axes[i].plot(original[:,0], label="Original (ft 0)")
-            axes[i].plot(reconstruction[:,0], label="Reconstruction (ft 0)", linestyle='--')
+        # plot
+        for i in range(F):
+            axes[i].plot(original[:,i], label="Original (ft 0)")
+            axes[i].plot(reconstruction[:,i], label="Reconstruction (ft 0)", linestyle='--')
             axes[i].set_title(f"Sequence {i} reconstruction")
 
         plt.tight_layout()
