@@ -28,7 +28,7 @@ def load_trained_model(file_path: str):
     Load a pre-trained model
     """
     model_file = torch.load(file_path, weights_only=False)
-    state_dict = model_file['state_dict']
+    state_dict = model_file['model_state']
     cfg = model_file['config']
     model = create_model(cfg)
     model.load_state_dict(state_dict)

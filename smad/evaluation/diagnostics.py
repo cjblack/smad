@@ -31,6 +31,31 @@ def evaluate(model, dataloader, teacher_forcing=False):
     all_latent = torch.cat(all_latent,dim=0)
     return all_outputs, all_targets, all_latent
 
+def evaluate_masked(model, dataloader, teacher_forcing=False):
+    """Evaluation maintaining mask for easier GPU computation"""
+    model.eval()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    all_outputs, all_targets, all_latent, all_mask = [], [], [], []
+    with torch.no_grad():
+        for packed, padded, lengths in dataloader:
+            padded = padded.to(device)
+            packed = packed.to(device)
+            lengths = torch.tensor(lengths,device=device)
+            max_len = padded.shape[1]
+            mask = torch.arange(max_len)[None, :].to(device) < lengths[:, None] # (B, S)
+            #mask = mask.unsqueeze(2).repeat(1,1,2)
+            decoded = model(packed, padded, lengths, teacher_forcing=teacher_forcing)
+            z = model.encode(packed, lengths)
+            all_latent.append(z)
+            pred = decoded
+            target = padded
+            all_outputs.append(pred)
+            all_targets.append(target)
+            all_mask.append(mask)
+    all_latent = torch.cat(all_latent, dim=0)
+    return all_outputs, all_targets, all_latent, all_mask
+
 def per_timestep_mse(all_outputs, all_targets, output_dir = None):
     # all_outputs and all_targets are lists of (seq_len, feat_dim) tensors (CPU)
     max_len = max(o.shape[0] for o in all_targets)
