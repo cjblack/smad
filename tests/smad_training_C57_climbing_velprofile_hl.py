@@ -1,3 +1,5 @@
+import os
+import argparse
 from smad.training.train import train_model_packed, auto_regressive_fine_tuning
 from smad.training.utils import collate_fn
 from smad.evaluation.diagnostics import evaluate
@@ -12,11 +14,19 @@ from pathlib import Path
 
 if __name__ == "__main__":
     # this is just for testing at the moment...
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data-dir", default=None, help='Folder where data is located')
+    args = parser.parse_args()
+
     config_file = 'smad_forelimb_vp_autoencoder.yml'
+    sub_data_dir = 'climbing_velprofiles_C57'
     train_set = 'climbing_C57_hindlimb_vp_train.pt'
     test_set = 'climbing_C57_hindlimb_vp_test.pt'
     val_set = 'climbing_C57_hindlimb_vp_val.pt'
-    data_path = Path(__file__).resolve().parent.parent / 'smad/data/test_sets/climbing_velprofiles_C57'
+    
+    data_path = Path(get_data_dir(args.data_dir)) / sub_data_dir
+
+    #data_path = Path(__file__).resolve().parent.parent / 'smad/data/test_sets/climbing_velprofiles_C57'
     data_train = load_data(data_path / train_set)
     data_test = load_data(data_path / test_set)
     data_val = load_data(data_path / val_set)
@@ -32,6 +42,10 @@ if __name__ == "__main__":
     model, fine_tuning_info = auto_regressive_fine_tuning(model,train_loader, training_info, criterion, optimizer, device)
     output_dir = get_output_dir()
 
+    # Update training info 
+    training_info['train_set_name'] = train_set
+    training_info['training_file'] = os.path.basename(__file__)
+    
     save_model(model,training_info,output_dir)
     pickle_save_data(output_dir+'/training_info.pkl',training_info)
     pickle_save_data(output_dir + '/autoregressive_rt_info.pkl', fine_tuning_info)

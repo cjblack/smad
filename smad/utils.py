@@ -71,3 +71,15 @@ def get_output_dir():
     os.makedirs(output_dir, exist_ok=True)
 
     return output_dir
+
+def get_data_dir(data_dir=None):
+
+    if data_dir:
+        return data_dir
+    
+    environ_data_dir = os.environ.get("DATA_DIR")
+    
+    if environ_data_dir:
+        return environ_data_dir
+
+    raise ValueError("No data directory provided and DATA_DIR is not set.")
