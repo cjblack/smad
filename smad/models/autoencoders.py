@@ -233,7 +233,7 @@ class MultiModalLSTM(nn.Module):
         self.num_layers_dec = model_params['num_decoder_layers']
         dropout = model_params['dropout'] if hidden_size > 1 else 0.0
         use_skip = model_params['skip_connections']
-        self.num_modalities = len(input_size)
+        self.num_modalities = len(self.input_size)
 
         # Set lists for functions
         self.encoders = nn.ModuleDict()
@@ -353,17 +353,18 @@ class MultiModalLSTM(nn.Module):
         padded_data = dict()
         outputs = dict()
         decoded = dict()
+        enc_out = dict()
 
         for key, val in data_dict.items():
-            batch_size[key] = val['padded_input'].shape[0]
-            max_len[key] = val['padded_input'].shape[1]
-            feat_dim[key] = val['padded_input'].shape[2]
-            packed_data[key] = val['packed_input']
-            padded_data[key] = val['padded_input']
+            batch_size[key] = val['padded'].shape[0]
+            max_len[key] = val['padded'].shape[1]
+            feat_dim[key] = val['padded'].shape[2]
+            packed_data[key] = val['packed']
+            padded_data[key] = val['padded']
+            enc_out[key] = []
             outputs[key] = []
             decoded[key] = []
         # Encoder (Bidirectional LSTM)
-        enc_out = []
         h_n = []
         c_n = []
         h_top_fwd = []
@@ -371,21 +372,18 @@ class MultiModalLSTM(nn.Module):
 
         for key, enclayer in self.encoders.items():
             enc_out_, (h_n_, c_n_) = (enclayer(packed_data[key]))
-            enc_out.append(enc_out_)
+            enc_out[key] = enc_out_
             h_n.append(h_n_)
             c_n.append(c_n_)    
             h_top_fwd.append(h_n_[-2])
             h_top_bwd.append(h_n_[-1])
         # Take the last hidden state (concatenating the forward and backward hidden states)
         # Shape: [batch_size, hidden_size*2] due to bidirectionality
+        
         for i in range(len(h_n)):
             h_n[i] = torch.cat((h_top_fwd[i], h_top_bwd[i]), dim=1)
         
-        for i, (key, normlayer) in enumerate(self.norms):
-            h_n[i] = normlayer(h_n[i])
 
-        # Sum // concatenate hidden state
-        h_n = sum(h_n)
         
         # Mean pooling
         if self.pooling:
@@ -400,52 +398,52 @@ class MultiModalLSTM(nn.Module):
                 mask = (torch.arange(T, device=enc_out_padded.device)[None,:] < lengths[:,None]).unsqueeze(-1).float()
 
                 mean_hidden.append((enc_out_padded*mask).sum(dim=1) / lengths.unsqueeze(-1).float()) # normalise by actual seq len
+            
+            for i, (key, normlayer) in enumerate(self.norms.items()):
+                h_n[i] = normlayer(torch.cat([h_n[i], mean_hidden[i]],dim=1))
+            
+            latent_input = sum(h_n)
 
-            mean_hidden = sum(mean_hidden)
-            latent_input = torch.cat([h_n, mean_hidden], dim=1)
         else:
-            latent_input = h_n
+            latent_input = sum(h_n)
 
         # Latent space (bottleneck)
         latent = self.latent(latent_input)  # Shape: [batch_size, latent_dim]
         
         # Decoder LSTM input will be the latent vector
-        #hidden = self.latent_to_hidden(latent).unsqueeze(0)
         h0_single = torch.tanh(self.latent_to_hidden(latent)) # TANH wrap...
         hidden = h0_single.unsqueeze(0).repeat(self.num_layers_dec, 1, 1)
         c0 = torch.zeros_like(hidden)
 
         #outputs = []
-        
+        time_key = next(iter(max_len))
         ### NEEDS TO BE UPDATED ###
         if learned_start_token:
             # trains on start token - more generalizable
             decoder_input = self.start_token.expand(batch_size, 1, -1)
         else:
             # trains on initial input
-            decoder_input = {key: x['padded'][:, 0, :] for key, x in data_dict.items()}#padded_input[:, 0, :].unsqueeze(1) # always start with first input, even though this is not an SOS token
-        for t in range(max_len):
+            decoder_input = {key: x['padded'][:, 0, :].unsqueeze(1) for key, x in data_dict.items()}#padded_input[:, 0, :].unsqueeze(1) # always start with first input, even though this is not an SOS token
+        
+        for t in range(max_len[time_key]):
             for key, declayer in self.decoders.items():
                 out, (hidden, c0) = declayer(decoder_input[key], (hidden, c0))
                 pred = self.output_linears[key](out)
                 outputs[key].append(pred)
+                if t+1 < max_len[time_key]:
+                    if teacher_forcing and random.random() < teacher_forcing_ratio:
+                        decoder_input[key] = data_dict[key]['padded'][:, t, :].unsqueeze(1)#{key: x['padded_input'][:, t, :] for key, x in data_dict.items()}#padded_input[:,t,:].unsqueeze(1)
+                    else:
+                        decoder_input[key] = pred
+                    if noise_std > 0.0:
+                        noise = torch.randn_like(decoder_input[key])*noise_std # creates random gaussian noise
+                        decoder_input[key] = decoder_input[key]+noise # adds random gaussian noise to input
 
-                if teacher_forcing and random.random() < teacher_forcing_ratio:
-                    decoder_input[key] = data_dict[key]['padded_input'][:, t, :]#{key: x['padded_input'][:, t, :] for key, x in data_dict.items()}#padded_input[:,t,:].unsqueeze(1)
-                else:
-                    decoder_input[key] = pred
-                if noise_std > 0.0:
-                    noise = torch.randn_like(decoder_input[key])*noise_std # creates random gaussian noise
-                    decoder_input[key] = decoder_input[key]+noise # adds random gaussian noise to input
-        #decoder_out, _ = self.decoder_lstm(decoder_input)
-        # Reconstruct the original input
-        #decoded = self.decoder_out(decoder_out)
-        #decoded = torch.cat(outputs, dim=1)
         for key, _ in data_dict.items():
             decoded[key] = torch.cat(outputs[key], dim=1)
         
             if self.use_skip:
                 alpha = torch.sigmoid(self.skip_alpha) # constrain between 0-1
-                decoded[key] = alpha * decoded[key] + (1-alpha)*data_dict[key]['padded_input']
+                decoded[key] = alpha * decoded[key] + (1-alpha)*data_dict[key]['padded']
 
         return decoded

@@ -369,7 +369,7 @@ def auto_regressive_fine_tuning(model, train_loader: torch.utils.data.DataLoader
     return model, fine_tune_info
 
 
-def train_multimodal_model_kinematics_inspired(model_params: str | dict, data_dict: dict, lambda_smooth = 0.1, dt = 1/200., teacher_forcing_function: str = 'inverse_sigmoid', noise: float = 0.0):
+def train_multimodal_model_kinematics_inspired(model_params: str | dict, dataloader_list: list, lambda_smooth = 0.1, dt = 1/200., teacher_forcing_function: str = 'inverse_sigmoid', noise: float = 0.0):
     # Make sure model runs on cuda
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(device)
@@ -400,10 +400,10 @@ def train_multimodal_model_kinematics_inspired(model_params: str | dict, data_di
     optimizer = optimizer(model.parameters(), lr=training_params['learning_rate']) # set optimizer parameters
 
     # run basic training
-    #start = time.process_time() # variable for runtime start
     epochs = training_params['epochs']
 
-
+    modalities = dataloader_list[0]
+    dataloaders = dataloader_list[1]
     for epoch in range(epochs):
 
         start = time.perf_counter() # variable for runtime start
@@ -413,27 +413,45 @@ def train_multimodal_model_kinematics_inspired(model_params: str | dict, data_di
         total_count = 0.0
         tf_ratio = get_teacher_forcing_ratio(teacher_forcing_function, epoch, total_epochs=epochs) # this is a basic implementation
         noise_std = min(noise, (epoch/epochs)*noise) # gradually increase gaussian noise to set level -> if set level = 0.0, no noise will be added in model (see model class)
-        for packed, padded, lengths in train_loader:
+        
 
-            packed = packed.to(device)
-            padded = padded.to(device)
-            lengths = torch.tensor(lengths, device=device)
+        for batches in zip(*dataloaders): 
+            batch_dict = dict(zip(modalities, batches))
+            mod_data_dict = {}
+            for i, mod in enumerate(modalities):
+                packed, padded, lengths = batches[i]
+                mod_data_dict[mod] = {
+                    "packed": packed.to(device),
+                    "padded": padded.to(device),
+                    "lengths": torch.tensor(lengths, device=device)
+                }
+
 
             optimizer.zero_grad() # zero out gradient
 
             # Forward pass
 
-            outputs = model(packed, padded, lengths, teacher_forcing=teacher_forcing, teacher_forcing_ratio=tf_ratio, noise_std = noise_std)
-
+            outputs = model(mod_data_dict, teacher_forcing=teacher_forcing, teacher_forcing_ratio=tf_ratio, noise_std = noise_std)
+            print(outputs.keys())
             # Masked loss
-            target = padded[:, :, :]
+            target = [mod_data_dict[key]['padded'] for key, val in mod_data_dict.items()]
+            target = torch.cat(target)
+
+            outputs = [outputs[key] for key, val in outputs.items()]
+            outputs = torch.cat(outputs)
             max_len_minus1 = target.size(1)
 
-            mask = torch.arange(max_len_minus1, device=device)[None, :] < lengths[:, None] # mask over padded timesteps
-            mask = mask.unsqueeze(-1)
+            # Create mask for each modality ** this assumes the seq len for each data set is the same, may need to downsample
+            mask_max_len = torch.arange(max_len_minus1, device=device)
+            masks = []
+            for key, val in mod_data_dict.items():
+                masks.append((mask_max_len[None, :] < mod_data_dict[key]['lengths'][:, None]).unsqueeze(-1))
+            mask = torch.cat(masks) # concat modalities
+
 
             # Criterion Loss
             per_timestep_loss = (criterion(outputs, target)) #* mask)
+            print(f'per timestep loss: {per_timestep_loss.shape}')
             masked_loss = per_timestep_loss * mask # need to do this as criterion takes into account padding
             batch_loss_sum = masked_loss.sum()
 
@@ -441,22 +459,10 @@ def train_multimodal_model_kinematics_inspired(model_params: str | dict, data_di
             recon_loss = batch_loss_sum / denom_recon
             total_loss += batch_loss_sum.item()
             total_count += denom_recon.item()#mask.sum().item()
-            #loss = per_timestep_loss.sum() / denom_recon#mask.sum() # stabilize backpropagation against longer samples
-
-            # Coordination loss - all limbs should not move together during climbing
-            v = outputs#(outputs[:, 1:, :] - outputs[:, :-1, :]) / dt
-            v_thresh = 0.01 # consider this moving
-            speed = v.abs() # in case velocity is less than 0, which it shouldnt be anyway
-            moving_mask = (speed > v_thresh).float()
-            num_moving = moving_mask.sum(dim=-1)
-            all_moving = (num_moving == 4).float()
-
-            # penalty
-            anchor_loss = all_moving.mean() # calculate loss for when all four limbs are moving simultaneously
-
+           
             
             # Total loss
-            loss = recon_loss + (anchor_loss * lambda_smooth) # reconstruction loss + 4 limb moving loss
+            loss = recon_loss #+ (anchor_loss * lambda_smooth) # reconstruction loss + 4 limb moving loss
 
             # Backwards pass & optimization
             loss.backward()
@@ -470,13 +476,12 @@ def train_multimodal_model_kinematics_inspired(model_params: str | dict, data_di
         if epoch % 10 == 0:
             print(f"Epoch {epoch}/{epochs}, MSE: {epoch_mse:.4f}")
         training_info['epoch_mse_train'][epoch] = total_loss/total_count#loss.item() # store epoch's total loss
-        #start = time.process_time()
 
         """VALIDATION"""
-        epoch_mse_val_ar, epoch_mse_val_tf = validation_eval(model, val_loader, criterion, device, tf_ratio)
+        #epoch_mse_val_ar, epoch_mse_val_tf = validation_eval(model, val_loader, criterion, device, tf_ratio)
         
-        training_info['epoch_mse_val_ar'][epoch] = epoch_mse_val_ar
-        training_info['epoch_mse_val_tf'][epoch] = epoch_mse_val_tf
+        #training_info['epoch_mse_val_ar'][epoch] = epoch_mse_val_ar
+        #training_info['epoch_mse_val_tf'][epoch] = epoch_mse_val_tf
         training_info['epoch_time'][epoch] = time.perf_counter() - start # store epoch time
 
 
