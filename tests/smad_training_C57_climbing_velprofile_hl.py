@@ -5,7 +5,7 @@ from smad.training.utils import collate_fn
 from smad.evaluation.diagnostics import evaluate
 from smad.data.utils import load_data, pickle_save_data, create_data_loader, json_save_data, split_train_val
 from smad.data.data_types import SeqDataSet
-from smad.utils import get_output_dir
+from smad.utils import get_output_dir, get_data_dir
 from smad.plotting.training_plots import plot_reconstruction, plot_training_error
 from smad.plotting.evaluation_plots import plot_corr_coef
 from smad.models.utils import save_model
