@@ -18,7 +18,7 @@ if __name__ == "__main__":
     parser.add_argument("--data-dir", default=None, help='Folder where data is located')
     args = parser.parse_args()
 
-    config_file = 'smad_forelimb_vp_autoencoder.yml'
+    config_file = 'smad_hindlimb_vp_autoencoder.yml'
     sub_data_dir = 'climbing_velprofiles_C57'
     train_set = 'climbing_C57_hindlimb_vp_train.pt'
     test_set = 'climbing_C57_hindlimb_vp_test.pt'
