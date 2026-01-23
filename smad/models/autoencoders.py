@@ -192,25 +192,32 @@ class LstmAutoencoderPk(nn.Module):
             decoder_input = self.start_token.expand(batch_size, 1, -1)
         else:
             # trains on initial input
-            decoder_input = padded_input[:, 0, :].unsqueeze(1) # always start with first input, even though this is not an SOS token
-        for t in range(max_len):
-            decoder_input = self.input_dropout(decoder_input) # dropout
-            out, (hidden, c0) = self.decoder_lstm(decoder_input, (hidden, c0))
-            out = self.output_dropout(out) # dropout
-            pred = self.decoder_out(out)
-            outputs.append(pred)
-            if t+1 < max_len:
-                if teacher_forcing and random.random() < teacher_forcing_ratio:
-                    decoder_input = padded_input[:,t,:].unsqueeze(1)
-                else:
-                    decoder_input = pred
-                if noise_std > 0.0:
-                    noise = torch.randn_like(decoder_input)*noise_std # creates random gaussian noise
-                    decoder_input = decoder_input+noise # adds random gaussian noise to input
+            decoder_input = torch.zeros(batch_size, max_len, feat_dim, device=padded_input.device)
+            #decoder_input = padded_input[:, 0, :].unsqueeze(1) # always start with first input, even though this is not an SOS token
+        decoder_input = self.input_dropout(decoder_input)
+        out, (hidden, c0) = self.decoder_lstm(decoder_input, (hidden, c0))
+        out = self.output_dropout(out)
+        decoded = self.decoder_out(out)
+
+        """AUTO REGRESSIVE"""
+        # for t in range(max_len):
+        #     decoder_input = self.input_dropout(decoder_input) # dropout
+        #     out, (hidden, c0) = self.decoder_lstm(decoder_input, (hidden, c0))
+        #     out = self.output_dropout(out) # dropout
+        #     pred = self.decoder_out(out)
+        #     outputs.append(pred)
+        #     if t+1 < max_len:
+        #         if teacher_forcing and random.random() < teacher_forcing_ratio:
+        #             decoder_input = padded_input[:,t,:].unsqueeze(1)
+        #         else:
+        #             decoder_input = pred
+        #         if noise_std > 0.0:
+        #             noise = torch.randn_like(decoder_input)*noise_std # creates random gaussian noise
+        #             decoder_input = decoder_input+noise # adds random gaussian noise to input
         #decoder_out, _ = self.decoder_lstm(decoder_input)
         # Reconstruct the original input
         #decoded = self.decoder_out(decoder_out)
-        decoded = torch.cat(outputs, dim=1)
+        #decoded = torch.cat(outputs, dim=1)
 
         if self.use_skip:
             alpha = torch.sigmoid(self.skip_alpha) # constrain between 0-1

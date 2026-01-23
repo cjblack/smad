@@ -15,13 +15,13 @@ def reconstruct(model, dataset: torch.utils.data.DataLoader | str, device=None):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     if type(dataset) == str:
-        dataset = load_data(x)
+        dataset = load_data(dataset)
         dataset = SeqDataSet(dataset)
         dataset = create_data_loader(data=dataset, batch_size=32, shuffle=False, collate_fn=collate_fn)
     
 
     model.to(device)
-    dataset.to(device)
+    #dataset.to(device)
 
 
     all_outputs, all_targets, all_latent, all_mask = [], [], [], []
