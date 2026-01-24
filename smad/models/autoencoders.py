@@ -185,15 +185,20 @@ class LstmAutoencoderPk(nn.Module):
         hidden = h0_single.unsqueeze(0).repeat(self.num_layers_dec, 1, 1)
         c0 = torch.zeros_like(hidden)
 
-        outputs = []
+        # outputs = []
 
-        if learned_start_token:
-            # trains on start token - more generalizable
-            decoder_input = self.start_token.expand(batch_size, 1, -1)
-        else:
-            # trains on initial input
-            decoder_input = torch.zeros(batch_size, max_len, feat_dim, device=padded_input.device)
+        # if learned_start_token:
+        #     # trains on start token - more generalizable
+        #     decoder_input = self.start_token.expand(batch_size, 1, -1)
+        # else:
+        #     # trains on initial input
+        #     decoder_input = torch.zeros(batch_size, max_len, feat_dim, device=padded_input.device)
             #decoder_input = padded_input[:, 0, :].unsqueeze(1) # always start with first input, even though this is not an SOS token
+        
+        decoder_input = latent.unsqueeze(1).repeat(1, max_len, 1)
+        if noise_std > 0.0:
+            decoder_input = decoder_input + torch.randn_like(decoder_input) * noise_std
+        
         decoder_input = self.input_dropout(decoder_input)
         out, (hidden, c0) = self.decoder_lstm(decoder_input, (hidden, c0))
         out = self.output_dropout(out)
