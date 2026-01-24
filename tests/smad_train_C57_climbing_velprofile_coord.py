@@ -39,7 +39,7 @@ if __name__ == "__main__":
     test_loader = create_data_loader(data=dataset_test, shuffle=False, batch_size=batch_size, collate_fn = collate_fn)
     print('Starting training...')
     model, training_info, criterion, optimizer, device = train_model_packed(config_file,train_loader, val_loader, noise=0.005)
-    model, fine_tuning_info = auto_regressive_fine_tuning(model,train_loader, training_info, criterion, optimizer, device)
+    #model, fine_tuning_info = auto_regressive_fine_tuning(model,train_loader, training_info, criterion, optimizer, device)
     output_dir = get_output_dir()
 
     # Update training info 
@@ -48,7 +48,7 @@ if __name__ == "__main__":
     
     save_model(model,training_info,output_dir)
     pickle_save_data(output_dir+'/training_info.pkl',training_info)
-    pickle_save_data(output_dir + '/autoregressive_rt_info.pkl', fine_tuning_info)
+    #pickle_save_data(output_dir + '/autoregressive_rt_info.pkl', fine_tuning_info)
     #json_save_data(output_dir+'/model_cfg.json', training_info['cfg'])
 
     plot_reconstruction(model, dataset_train, output_dir)
