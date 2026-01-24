@@ -27,7 +27,7 @@ jobs:
           environment-file: environment.yml
           activate-environment: smad
           python-version: 3.11
-          auto-activate-base: false
+          auto-activate: false
       - name: Disk space (post)
         shell: bash -l {0}
         run: |
