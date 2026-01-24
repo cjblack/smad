@@ -1,5 +1,5 @@
 cfg_name: smad_coord_vp_autoencoder
-model_name: LstmAutoencoderPk
+model_name: LstmAutoencoderAnomaly
 module: smad.models.autoencoders
 params:
   model:
