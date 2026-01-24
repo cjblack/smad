@@ -80,7 +80,7 @@ class LstmAutoencoderPk(nn.Module):
         
         # Decoder LSTM
         self.latent_to_hidden = nn.Linear(latent_dim, hidden_size)
-        self.decoder_lstm = nn.LSTM(input_size=input_size, num_layers=self.num_layers_dec, hidden_size=hidden_size, batch_first=True, dropout=dec_dropout)
+        self.decoder_lstm = nn.LSTM(input_size=latent_dim, num_layers=self.num_layers_dec, hidden_size=hidden_size, batch_first=True, dropout=dec_dropout)
         
         # Final linear layer to reconstruct the input sequence
         self.decoder_out = nn.Linear(hidden_size, input_size)
@@ -196,6 +196,7 @@ class LstmAutoencoderPk(nn.Module):
             #decoder_input = padded_input[:, 0, :].unsqueeze(1) # always start with first input, even though this is not an SOS token
         
         decoder_input = latent.unsqueeze(1).repeat(1, max_len, 1)
+
         if noise_std > 0.0:
             decoder_input = decoder_input + torch.randn_like(decoder_input) * noise_std
         
