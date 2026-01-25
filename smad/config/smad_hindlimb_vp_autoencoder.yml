@@ -1,15 +1,15 @@
 cfg_name: smad_hindlimb_vp_autoencoder
-model_name: LstmAutoencoderPk
+model_name: LstmAutoencoderAnomaly
 module: smad.models.autoencoders
 params:
   model:
-    hidden_size: 8
+    hidden_size: 32
     input_size: 2
-    latent_dim: 4
+    latent_dim: 16
     num_encoder_layers: 1
     num_decoder_layers: 1
     pooling: False
-    dropout: 0.05
+    dropout: 0.0
     skip_connections: False
   training:
     batch_size: 32
