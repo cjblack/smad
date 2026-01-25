@@ -3,9 +3,9 @@ model_name: LstmAutoencoderAnomaly
 module: smad.models.autoencoders
 params:
   model:
-    hidden_size: 16
+    hidden_size: 32
     input_size: 8
-    latent_dim: 8
+    latent_dim: 16
     num_encoder_layers: 1
     num_decoder_layers: 1
     pooling: False

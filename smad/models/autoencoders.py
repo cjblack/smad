@@ -233,7 +233,7 @@ class LstmAutoencoderPk(nn.Module):
     
 class LstmAutoencoderAnomaly(nn.Module):
     def __init__(self, model_params):#input_size, hidden_size, latent_dim):
-        super(LstmAutoencoderPk, self).__init__()
+        super(LstmAutoencoderAnomaly, self).__init__()
 
         # Extract model params from dictionary
         input_size = model_params['input_size']
@@ -269,7 +269,7 @@ class LstmAutoencoderAnomaly(nn.Module):
         
         # Decoder LSTM
         self.latent_to_hidden = nn.Linear(latent_dim, hidden_size)
-        self.decoder_lstm = nn.LSTM(input_size=input_size, num_layers=self.num_layers_dec, hidden_size=hidden_size, batch_first=True, dropout=dec_dropout)
+        self.decoder_lstm = nn.LSTM(input_size=latent_dim, num_layers=self.num_layers_dec, hidden_size=hidden_size, batch_first=True, dropout=dec_dropout)
         
         # Final linear layer to reconstruct the input sequence
         self.decoder_out = nn.Linear(hidden_size, input_size)
@@ -368,22 +368,13 @@ class LstmAutoencoderAnomaly(nn.Module):
         # Latent space (bottleneck)
         latent = self.latent(latent_input)  # Shape: [batch_size, latent_dim]
         
-        # Decoder LSTM input will be the latent vector
-        #hidden = self.latent_to_hidden(latent).unsqueeze(0)
+        # Intial decoder state from latent
         h0_single = torch.tanh(self.latent_to_hidden(latent)) # TANH wrap...
         hidden = h0_single.unsqueeze(0).repeat(self.num_layers_dec, 1, 1)
         c0 = torch.zeros_like(hidden)
 
-        # outputs = []
+        decoder_input = latent.unsqueeze(1).repeat(1, max_len, 1)
 
-        if learned_start_token:
-            # trains on start token - more generalizable
-            decoder_input = self.start_token.expand(batch_size, max_len, -1)
-        else:
-            # trains on initial input
-            decoder_input = torch.zeros(batch_size, max_len, feat_dim, device=padded_input.device)
-            #decoder_input = padded_input[:, 0, :].unsqueeze(1) # always start with first input, even though this is not an SOS token
-        
 
         if noise_std > 0.0:
             decoder_input = decoder_input + torch.randn_like(decoder_input) * noise_std
@@ -392,26 +383,6 @@ class LstmAutoencoderAnomaly(nn.Module):
         out, (hidden, c0) = self.decoder_lstm(decoder_input, (hidden, c0))
         out = self.output_dropout(out)
         decoded = self.decoder_out(out)
-
-        """AUTO REGRESSIVE"""
-        # for t in range(max_len):
-        #     decoder_input = self.input_dropout(decoder_input) # dropout
-        #     out, (hidden, c0) = self.decoder_lstm(decoder_input, (hidden, c0))
-        #     out = self.output_dropout(out) # dropout
-        #     pred = self.decoder_out(out)
-        #     outputs.append(pred)
-        #     if t+1 < max_len:
-        #         if teacher_forcing and random.random() < teacher_forcing_ratio:
-        #             decoder_input = padded_input[:,t,:].unsqueeze(1)
-        #         else:
-        #             decoder_input = pred
-        #         if noise_std > 0.0:
-        #             noise = torch.randn_like(decoder_input)*noise_std # creates random gaussian noise
-        #             decoder_input = decoder_input+noise # adds random gaussian noise to input
-        #decoder_out, _ = self.decoder_lstm(decoder_input)
-        # Reconstruct the original input
-        #decoded = self.decoder_out(decoder_out)
-        #decoded = torch.cat(outputs, dim=1)
 
         if self.use_skip:
             alpha = torch.sigmoid(self.skip_alpha) # constrain between 0-1
